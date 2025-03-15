@@ -1,0 +1,76 @@
+{
+    "name": "youtube-downloader-backend",
+    "version": "1.0.0",
+    "description": "Backend for YouTube downloader application",
+    "main": "dist/index.js",
+    "scripts": {
+        "dev": "tsx watch src/index.ts",
+        "build": "tsc -p tsconfig.json",
+        "start": "node dist/index.js",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
+        "lint": "eslint . --ext .ts --quiet",
+        "lint:fix": "eslint . --ext .ts --fix",
+        "format": "prettier --write \"src/**/*.ts\"",
+        "format:check": "prettier --check \"src/**/*.ts\"",
+        "prepare": "cd .. && husky install backend/.husky",
+        "install:no-husky": "npm install --ignore-scripts",
+        "docs": "typedoc --out docs src",
+        "db:migrate": "knex migrate:latest",
+        "db:rollback": "knex migrate:rollback",
+        "seed": "knex seed:run"
+    },
+    "keywords": [
+        "youtube",
+        "downloader",
+        "fastify",
+        "typescript",
+        "api"
+    ],
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+        "@fastify/cors": "^8.3.0",
+        "@fastify/helmet": "^11.0.0",
+        "@fastify/rate-limit": "^8.0.3",
+        "@fastify/swagger": "^8.8.0",
+        "@fastify/swagger-ui": "^1.9.3",
+        "dotenv": "^16.3.1",
+        "fastify": "^4.21.0",
+        "fastify-plugin": "^4.5.1",
+        "knex": "^2.5.1",
+        "pino": "^8.15.0",
+        "pino-pretty": "^10.2.0",
+        "youtube-dl-exec": "^2.4.6",
+        "zod": "^3.22.2"
+    },
+    "devDependencies": {
+        "@commitlint/cli": "^17.7.1",
+        "@commitlint/config-conventional": "^17.7.0",
+        "@types/node": "^20.5.9",
+        "@typescript-eslint/eslint-plugin": "^6.6.0",
+        "@typescript-eslint/parser": "^6.6.0",
+        "@vitest/coverage-v8": "^0.34.4",
+        "eslint": "^8.48.0",
+        "eslint-config-prettier": "^9.0.0",
+        "eslint-plugin-prettier": "^5.0.0",
+        "husky": "^8.0.3",
+        "lint-staged": "^14.0.1",
+        "prettier": "^3.0.3",
+        "supertest": "^6.3.3",
+        "tsx": "^3.12.8",
+        "typedoc": "^0.25.1",
+        "typescript": "^5.2.2",
+        "vitest": "^0.34.4"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "lint-staged": {
+        "*.ts": [
+            "eslint --fix",
+            "prettier --write"
+        ]
+    }
+}

@@ -1,95 +1,51 @@
-import Fastify from 'fastify';
+import express, { Express } from 'express';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import path from 'path';
 import { env } from './config/env';
 import { logger } from './config/logger';
-
-// Import plugins
-import cors from '@fastify/cors';
-import helmet from '@fastify/helmet';
-import rateLimit from '@fastify/rate-limit';
-import swagger from '@fastify/swagger';
-import swaggerUI from '@fastify/swagger-ui';
-
-// Import custom plugins
-import downloadTrackerPlugin from './plugins/download-tracker.plugin';
-
-// Import routes
-import { registerRoutes } from './routes';
-
-// Import error handler middleware
-import { errorHandler } from './middlewares/error-handler';
+import { errorHandler } from './middleware/error-handler';
+import routes from './routes';
 
 /**
- * Build the Fastify application
- * Using FastifyInstance for the return type
+ * Create Express application
  */
-export async function buildApp(): Promise<ReturnType<typeof Fastify>> {
-  // Create Fastify instance
-  const app = Fastify({
-    logger,
-    trustProxy: true,
-  });
+export function createApp(): Express {
+  const app = express();
 
-  // Register plugins
-  await app.register(cors, {
-    origin: env.CORS_ORIGIN,
-    credentials: true,
-  });
+  // Middleware
+  app.use(helmet());
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+  app.use(morgan('dev'));
 
-  await app.register(helmet, {
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:'],
-      },
-    },
-  });
+  // Static files for downloaded content
+  app.use('/static', express.static(path.join(process.cwd(), 'public')));
 
-  await app.register(rateLimit, {
-    max: env.RATE_LIMIT_MAX,
-    timeWindow: env.RATE_LIMIT_TIMEWINDOW,
-  });
+  // API Routes
+  app.use('/api', routes);
 
-  // Register custom plugins
-  await app.register(downloadTrackerPlugin, {
-    cleanupIntervalMs: 30 * 60 * 1000, // 30 minutes
-    maxAgeMs: 24 * 60 * 60 * 1000, // 1 day
-  });
-
-  // Register Swagger for API documentation
-  await app.register(swagger, {
-    swagger: {
-      info: {
-        title: 'YouTube Downloader API',
-        description: 'API for downloading YouTube videos and extracting audio',
-        version: '1.0.0',
-      },
-      host: env.SWAGGER_HOST,
-      schemes: [env.SWAGGER_SCHEME],
-      consumes: ['application/json'],
-      produces: ['application/json'],
-    },
-  });
-
-  await app.register(swaggerUI, {
-    routePrefix: '/documentation',
-    uiConfig: {
-      docExpansion: 'list',
-      deepLinking: false,
-    },
-  });
-
-  // Custom error handler
-  app.setErrorHandler(errorHandler);
-
-  // Health check route
-  app.get('/health', async () => {
-    return { status: 'ok', timestamp: new Date().toISOString() };
-  });
-
-  // Register routes
-  registerRoutes(app);
+  // Error handler must be registered after routes
+  app.use(errorHandler);
 
   return app;
+}
+
+/**
+ * Start the Express server
+ */
+export function startServer(): void {
+  const app = createApp();
+  const port = env.PORT;
+  const host = env.HOST;
+
+  app.listen(port, () => {
+    logger.info(`🚀 Server running at http://${host}:${port}`);
+    logger.info(`Environment: ${env.NODE_ENV}`);
+  });
+}
+
+if (require.main === module) {
+  // Only start the server if this file is run directly
+  startServer();
 }

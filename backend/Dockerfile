@@ -1,38 +1,46 @@
-FROM node:18-alpine AS builder
+FROM node:20-slim AS build
 
 WORKDIR /app
 
+# Copy package files and install dependencies
 COPY package*.json ./
-
 RUN npm ci
 
-COPY . .
-
+# Copy source files and build
+COPY tsconfig.json ./
+COPY src ./src
 RUN npm run build
 
-# Production stage
-FROM node:18-alpine
+# Create production image
+FROM node:20-slim
+
+# Ensure required system packages for youtube-dl
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
+# Copy package files and install production dependencies only
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Copy built files from build stage
+COPY --from=build /app/dist ./dist
+
+# Create data directory
+RUN mkdir -p /app/data
+
+# Environment variables
 ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOST=0.0.0.0
+ENV DOWNLOAD_TEMP_DIR=/app/data
 
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/package*.json ./
+# Expose port
+EXPOSE 3000
 
-# Install only production dependencies
-RUN npm ci --omit=dev
-
-# Install youtube-dl
-RUN apk add --no-cache python3 py3-pip ffmpeg && \
-    pip3 install yt-dlp
-
-# Create necessary directories
-RUN mkdir -p data/downloads && \
-    chmod -R 777 data
-
-# Expose the port the app runs on
-EXPOSE 3001
-
-# Start the application
+# Run the application
 CMD ["node", "dist/index.js"] 

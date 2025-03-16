@@ -1,134 +1,122 @@
 # YouTube Downloader Backend
 
-A robust backend service for downloading YouTube videos and extracting audio, built with Fastify and TypeScript.
+A Node.js application for downloading YouTube videos using TypeScript, Express, and youtube-dl-exec.
 
 ## Features
 
-- Video information retrieval
-- Format listing
-- Direct download link generation
-- Video downloading
-- Audio extraction
-- Client-side downloading for reduced server load
-- Rate limiting and security features
-- Comprehensive error handling
-- API documentation with Swagger
+- Download YouTube videos in various formats and qualities
+- Extract audio from YouTube videos
+- RESTful API for integration with other applications
+- Docker containerization for easy deployment
 
-## Tech Stack
+## Prerequisites
 
-- **Framework**: Fastify
-- **Language**: TypeScript
-- **Validation**: Zod + JSON Schema
-- **Documentation**: Swagger/OpenAPI
-- **Testing**: Vitest
-- **Containerization**: Docker
-- **CI/CD**: GitHub Actions
-- **YouTube Integration**: youtube-dl-exec (yt-dlp)
+- Node.js 18+ and npm
+- Python 3 (required for youtube-dl-exec)
+- ffmpeg (for audio conversion)
+- Docker and Docker Compose (for containerization)
 
-## Getting Started
+## Installation
 
-### Prerequisites
+### Local Development Setup
 
-- Node.js 18+
-- npm or yarn
-- Docker and docker-compose (optional)
-
-### Installation
-
-1. Clone the repository
-2. Navigate to the backend directory:
-   ```bash
-   cd backend
+1. Clone the repository:
+   ```
+   git clone https://github.com/s4birli/youtube.git
+   cd youtube/backend
    ```
 
-3. Install dependencies:
-   
-   **Option 1**: Use the installation script (recommended):
-   ```bash
-   ./install.sh
+2. Install dependencies:
    ```
-   This interactive script will guide you through the installation options.
-   
-   **Option 2**: Standard installation (with Git hooks setup)
-   ```bash
    npm install
    ```
-   
-   **Option 3**: Install without Husky Git hooks (if you're getting Git-related errors)
-   ```bash
-   npm run install:no-husky
-   ```
 
-4. Copy the environment file:
-   ```bash
+3. Create a .env file:
+   ```
    cp .env.example .env
    ```
-   
-5. Start the development server:
-   ```bash
+
+4. Run the development server:
+   ```
    npm run dev
    ```
 
 ### Using Docker
 
-To run the application with Docker:
+1. Build and start the Docker container:
+   ```
+   docker-compose up -d
+   ```
 
-```bash
-docker-compose up
-```
+2. Stop the container:
+   ```
+   docker-compose down
+   ```
 
 ## API Endpoints
 
-Once the server is running, you can access the API documentation at:
-http://localhost:3001/documentation
+### Get Video Information
 
-### Main Endpoints
+```
+POST /api/youtube/info
+Content-Type: application/json
 
-- `POST /api/youtube/info` - Get video information
-- `POST /api/youtube/formats` - Get available formats
-- `GET /api/youtube/link/:videoId/:formatId` - Get direct download link
-- `POST /api/youtube/download` - Start download process
-- `GET /api/youtube/progress/:downloadId` - Check download progress
-- `GET /api/youtube/download/:downloadId` - Stream downloaded file
+{
+  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+}
+```
 
-## Development
+### Download Video
 
-### Available Scripts
+```
+POST /api/youtube/download
+Content-Type: application/json
 
-- `npm run dev` - Start development server with hot-reloading
-- `npm run build` - Build for production
-- `npm run start` - Start production server
+{
+  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "format": "mp4",
+  "quality": "high"
+}
+```
+
+### Health Check
+
+```
+GET /api/health
+```
+
+## Scripts
+
+- `npm run build` - Build the TypeScript files
+- `npm run start` - Start the production server
+- `npm run dev` - Start the development server with hot reload
+- `npm run lint` - Run ESLint
+- `npm run lint:fix` - Fix ESLint issues
 - `npm run test` - Run tests
 - `npm run test:watch` - Run tests in watch mode
-- `npm run test:coverage` - Run tests with coverage
-- `npm run lint` - Run linter
-- `npm run lint:fix` - Fix linting issues
-- `npm run format` - Format code with Prettier
-- `npm run docs` - Generate API documentation
+- `npm run test:coverage` - Generate test coverage report
 
-## Deployment
+## Project Structure
 
-The application is configured for deployment to Oracle Cloud Infrastructure using GitHub Actions.
-
-## Troubleshooting
-
-### Installation Issues
-
-If you encounter errors related to Husky or Git hooks during installation, use one of these methods:
-
-1. **Interactive Installation Script**: 
-   ```bash
-   ./install.sh
-   ```
-   
-2. **Skip Git Hooks**:
-   ```bash
-   npm run install:no-husky
-   ```
-
-3. **Fix Husky Directory**: 
-   If you're having issues with Husky finding the Git directory, the project is configured to look for Git in the parent directory.
+```
+backend/
+├── src/                 # Source code
+│   ├── config/          # Configuration files
+│   ├── controllers/     # API controllers
+│   ├── middlewares/     # Express middlewares
+│   ├── routes/          # API routes
+│   ├── services/        # Business logic
+│   ├── interfaces/      # TypeScript interfaces
+│   ├── app.ts           # Express application setup
+│   └── index.ts         # Application entry point
+├── tests/               # Test files
+├── data/                # Downloaded files directory
+├── .env.example         # Environment variables example
+├── Dockerfile           # Docker configuration
+├── docker-compose.yml   # Docker Compose configuration
+└── README.md            # This file
+```
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+MIT 

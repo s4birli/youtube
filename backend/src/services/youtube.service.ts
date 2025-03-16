@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto';
 import youtubeDl from 'youtube-dl-exec';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
-import { AppError } from '../middlewares/error-handler';
+import { AppError } from '../middleware/error-handler';
 import {
   VideoInfo,
   VideoFormat,
@@ -38,10 +38,12 @@ const downloadProgress = new Map<string, DownloadProgress>();
 export class YoutubeService implements IYoutubeService {
   private readonly downloadDir: string;
   private activeDownloads: number;
+  private cleanupInterval: NodeJS.Timeout | null;
 
   constructor() {
     this.downloadDir = env.DOWNLOAD_TEMP_DIR;
     this.activeDownloads = 0;
+    this.cleanupInterval = null;
 
     // Ensure download directory exists
     void this.ensureDownloadDir();
@@ -51,26 +53,85 @@ export class YoutubeService implements IYoutubeService {
   }
 
   /**
+   * Cleanup resources when the service is no longer needed (for testing)
+   */
+  public cleanup(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+  }
+
+  /**
    * Get video information
    */
   public async getVideoInfo(url: string): Promise<VideoInfo> {
+    let timeoutId: NodeJS.Timeout | null = null;
+
     try {
-      // Use options directly compatible with youtube-dl-exec
-      const result = await youtubeDl(url, {
-        dumpSingleJson: true,
-        noCheckCertificates: true,
-        noWarnings: true,
-        preferFreeFormats: true,
-        addHeader: ['referer:youtube.com', 'user-agent:Mozilla/5.0'],
+      logger.debug(`Getting video info for URL: ${url}`);
+
+      // Check for invalid URL format
+      if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
+        logger.warn(`Invalid URL format: ${url}`);
+        throw new AppError(400, 'Invalid URL. Please provide a valid YouTube URL.');
+      }
+
+      // Create a timeout promise
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error('YouTube API request timed out after 15 seconds'));
+        }, 15000);
       });
 
-      return result as unknown as VideoInfo;
+      // Race between the actual request and the timeout
+      const result = await Promise.race([
+        youtubeDl(url, {
+          dumpSingleJson: true,
+          noCheckCertificates: true,
+          noWarnings: true,
+          socketTimeout: 10000,
+        }),
+        timeoutPromise,
+      ]);
+
+      // Clear the timeout if we got a result
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+
+      logger.debug(`Video info result type: ${typeof result}`);
+
+      // If we got a valid result, return it
+      if (result && typeof result === 'object' && Object.keys(result).length > 0) {
+        const typedResult = result as Record<string, unknown>;
+        logger.debug(`Successfully retrieved video info for: ${String(typedResult.title)}`);
+        return result as unknown as VideoInfo;
+      }
+
+      // If we didn't get a valid result, log the issue and throw an error
+      logger.error(`YouTube API returned invalid or empty result for URL: ${url}`);
+      throw new AppError(500, 'Failed to get video information from YouTube.');
     } catch (error) {
+      // Clear the timeout if an error occurred
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+
+      // Check for timeout error
+      if (error instanceof Error && error.message.includes('timed out')) {
+        logger.error(error, `YouTube API request timed out for URL: ${url}`);
+        throw new AppError(504, 'Request to YouTube timed out. Please try again later.');
+      }
+
+      // If it's already an AppError, just rethrow it
+      if (error instanceof AppError) {
+        throw error;
+      }
+
       logger.error(error, `Failed to get video info for ${url}`);
-      throw new AppError(
-        400,
-        'Failed to get video information. Please check the URL and try again.',
-      );
+      throw new AppError(500, 'Failed to get video information. Please try again later.');
     }
   }
 
@@ -97,7 +158,7 @@ export class YoutubeService implements IYoutubeService {
       const url = `https://www.youtube.com/watch?v=${videoId}`;
       const videoInfo = await this.getVideoInfo(url);
 
-      const format = videoInfo.formats.find((f) => f.format_id === formatId);
+      const format = videoInfo.formats.find(f => f.format_id === formatId);
 
       if (!format || !format.url) {
         throw new AppError(404, `Format ${formatId} not found for video ${videoId}`);
@@ -110,7 +171,7 @@ export class YoutubeService implements IYoutubeService {
       }
 
       logger.error(error, `Failed to get download URL for video ${videoId}, format ${formatId}`);
-      throw new AppError(400, 'Failed to get download URL. Please try again.');
+      throw new AppError(500, 'Failed to get download URL. Please try again.');
     }
   }
 
@@ -143,7 +204,7 @@ export class YoutubeService implements IYoutubeService {
 
       // Find the format if formatId is specified
       if (formatId) {
-        selectedFormat = videoInfo.formats.find((f) => f.format_id === formatId);
+        selectedFormat = videoInfo.formats.find(f => f.format_id === formatId);
         if (!selectedFormat) {
           throw new AppError(404, `Format ${formatId} not found`);
         }
@@ -197,7 +258,7 @@ export class YoutubeService implements IYoutubeService {
 
         // Find the downloaded file
         const files = await fs.readdir(this.downloadDir);
-        const downloadedFile = files.find((file) => file.includes(downloadId));
+        const downloadedFile = files.find(file => file.includes(downloadId));
 
         if (!downloadedFile) {
           throw new Error('Downloaded file not found');
@@ -222,7 +283,7 @@ export class YoutubeService implements IYoutubeService {
         return {
           id: downloadId,
           title: videoInfo.title,
-          downloadUrl: `/api/download/${downloadId}`,
+          downloadUrl: `/api/youtube/download/${downloadId}`,
           fileName: downloadedFile,
           contentType,
           fileSize: fileStats.size,
@@ -308,10 +369,17 @@ export class YoutubeService implements IYoutubeService {
    */
   private async ensureDownloadDir(): Promise<void> {
     try {
+      // Skip directory creation in test environment
+      if (process.env.NODE_ENV === 'test') {
+        logger.debug('Skipping directory creation in test environment');
+        return;
+      }
+
       await fs.mkdir(this.downloadDir, { recursive: true });
+      logger.info(`Download directory ensured at: ${this.downloadDir}`);
     } catch (error) {
       logger.error(error, 'Failed to create download directory');
-      throw new Error('Failed to create download directory');
+      // Don't throw in constructor to prevent unhandled rejections
     }
   }
 
@@ -321,10 +389,18 @@ export class YoutubeService implements IYoutubeService {
   private startCleanupJob(): void {
     const ONE_HOUR = 60 * 60 * 1000;
 
+    // Skip cleanup in test environment
+    if (process.env.NODE_ENV === 'test') {
+      logger.debug('Skipping cleanup job in test environment');
+      return;
+    }
+
     // Run cleanup every hour
-    setInterval(() => {
+    this.cleanupInterval = setInterval(() => {
       void this.cleanupOldFiles();
     }, ONE_HOUR);
+
+    logger.info('Download cleanup job scheduled');
   }
 
   /**
@@ -336,6 +412,8 @@ export class YoutubeService implements IYoutubeService {
       const now = Date.now();
       const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
+      let cleanedCount = 0;
+
       for (const file of files) {
         const filePath = path.join(this.downloadDir, file);
         const stats = await fs.stat(filePath);
@@ -343,8 +421,12 @@ export class YoutubeService implements IYoutubeService {
         // Remove files older than 1 day
         if (now - stats.mtime.getTime() > ONE_DAY_MS) {
           await fs.unlink(filePath);
-          logger.info(`Removed old file: ${file}`);
+          cleanedCount++;
         }
+      }
+
+      if (cleanedCount > 0) {
+        logger.info(`Removed ${cleanedCount} old files during cleanup`);
       }
     } catch (error) {
       logger.error(error, 'Error during cleanup job');

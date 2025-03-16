@@ -1,68 +1,54 @@
 /**
- * YouTube Video Format
- */
-export interface VideoFormat {
-  format_id: string;
-  format_note?: string;
-  ext: string;
-  format: string;
-  resolution?: string;
-  filesize?: number;
-  filesize_approx?: number;
-  fps?: number;
-  height?: number;
-  width?: number;
-  quality?: number;
-  vcodec?: string;
-  acodec?: string;
-  abr?: number;
-  asr?: number;
-  tbr?: number;
-  vbr?: number;
-  url?: string;
-}
-
-/**
- * YouTube Video Thumbnail
+ * Video thumbnail information
  */
 export interface VideoThumbnail {
   url: string;
-  height?: number;
   width?: number;
-  id?: string;
-  resolution?: string;
+  height?: number;
 }
 
 /**
- * YouTube Video Information
+ * Video format information
+ */
+export interface VideoFormat {
+  format_id: string;
+  ext: string;
+  format: string;
+  format_note?: string;
+  width?: number;
+  height?: number;
+  resolution?: string;
+  fps?: number;
+  vcodec?: string;
+  acodec?: string;
+  abr?: number;
+  url?: string;
+  filesize?: number;
+}
+
+/**
+ * Full video information
  */
 export interface VideoInfo {
   id: string;
   title: string;
+  formats: VideoFormat[];
+  thumbnails: VideoThumbnail[];
   description?: string;
+  upload_date?: string;
   uploader?: string;
   uploader_id?: string;
   uploader_url?: string;
-  channel?: string;
   channel_id?: string;
   channel_url?: string;
   duration?: number;
-  duration_string?: string;
   view_count?: number;
-  like_count?: number;
-  dislike_count?: number;
-  upload_date?: string;
   webpage_url: string;
-  formats: VideoFormat[];
-  thumbnails: VideoThumbnail[];
-  categories?: string[];
-  tags?: string[];
-  extractor?: string;
-  extractor_key?: string;
+  like_count?: number;
 }
 
 /**
- * Video Format Selection Response
+ * Simplified response for video formats
  */
 export interface VideoFormatResponse {
   id: string;
@@ -73,18 +59,18 @@ export interface VideoFormatResponse {
 }
 
 /**
- * Download Request
+ * Request to download a video
  */
 export interface DownloadRequest {
   videoUrl: string;
   formatId?: string;
   extractAudio?: boolean;
-  audioFormat?: 'best' | 'mp3' | 'm4a' | 'opus' | 'vorbis' | 'wav';
+  audioFormat?: string;
   quality?: string;
 }
 
 /**
- * Download Response
+ * Response for a download request
  */
 export interface DownloadResponse {
   id: string;
@@ -92,19 +78,16 @@ export interface DownloadResponse {
   downloadUrl: string;
   fileName: string;
   contentType: string;
-  fileSize?: number;
+  fileSize: number;
 }
 
 /**
- * Progress Information
+ * Progress information for a download
  */
 export interface ProgressInfo {
   id: string;
-  status: 'queued' | 'processing' | 'completed' | 'failed';
   progress: number;
-  eta?: number;
-  speed?: string;
-  size?: string;
+  status: 'queued' | 'processing' | 'completed' | 'failed';
   error?: string;
-  timestamp?: number;
+  timestamp: number;
 }

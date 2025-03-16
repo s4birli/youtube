@@ -1,41 +1,40 @@
-import 'dotenv/config';
+import { config } from 'dotenv';
 import { z } from 'zod';
+import path from 'path';
 
-// Environment validation schema
+// Load environment variables from .env file
+config();
+
+// Define schema for environment variables
 const envSchema = z.object({
   // Server
+  PORT: z.string().default('3000'),
+  HOST: z.string().default('localhost'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  PORT: z.string().transform(Number).default('3001'),
-  HOST: z.string().default('0.0.0.0'),
-  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+
+  // Directories
+  DOWNLOAD_TEMP_DIR: z.string().default('./data'),
 
   // CORS
-  CORS_ORIGIN: z.string().default('http://localhost:3000'),
+  CORS_ORIGIN: z.string().default('*'),
 
   // Rate limiting
-  RATE_LIMIT_MAX: z.string().transform(Number).default('100'),
-  RATE_LIMIT_TIMEWINDOW: z.string().transform(Number).default('60000'),
+  RATE_LIMIT_MAX: z.coerce.number().default(100),
+  RATE_LIMIT_TIMEWINDOW: z.coerce.number().default(60000), // 1 minute
 
-  // Database (if needed)
-  DB_CLIENT: z.string().default('sqlite3'),
-  DB_FILENAME: z.string().default('./data/youtube-dl.sqlite'),
-
-  // YouTube Downloader Config
-  DOWNLOAD_TEMP_DIR: z.string().default('./data/downloads'),
-  DOWNLOAD_TIMEOUT: z.string().transform(Number).default('300000'),
-  MAX_CONCURRENT_DOWNLOADS: z.string().transform(Number).default('3'),
-
-  // API Documentation
-  SWAGGER_HOST: z.string().default('localhost:3001'),
+  // Swagger
+  SWAGGER_HOST: z.string().default('localhost:3000'),
   SWAGGER_SCHEME: z.enum(['http', 'https']).default('http'),
+
+  // Max concurrent downloads
+  MAX_CONCURRENT_DOWNLOADS: z.coerce.number().default(3),
 });
 
-// Parse and validate environment variables
-const result = envSchema.safeParse(process.env);
+// Parse environment variables
+const env = envSchema.parse(process.env);
 
-if (!result.success) {
-  console.error('❌ Invalid environment variables:', result.error.format());
-  throw new Error('Invalid environment configuration');
-}
+// Resolve absolute paths
+env.DOWNLOAD_TEMP_DIR = path.resolve(process.cwd(), env.DOWNLOAD_TEMP_DIR);
 
-export const env = result.data;
+// Export environment variables
+export { env };

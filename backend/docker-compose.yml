@@ -1,43 +1,18 @@
 version: '3.8'
 
 services:
-  backend:
+  app:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
+    container_name: youtube-backend
     ports:
-      - "3001:3001"
+      - "3000:3000"
     volumes:
-      - .:/app
-      - /app/node_modules
       - ./data:/app/data
     environment:
-      - NODE_ENV=development
-      - PORT=3001
+      - NODE_ENV=production
+      - PORT=3000
       - HOST=0.0.0.0
-      - LOG_LEVEL=debug
-      - CORS_ORIGIN=http://localhost:3000
-    depends_on:
-      - db
-    restart: unless-stopped
-
-  db:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=youtube-dl
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-
-  adminer:
-    image: adminer
-    depends_on:
-      - db
-    ports:
-      - "8080:8080"
-
-volumes:
-  postgres_data: 
+      - DOWNLOAD_TEMP_DIR=/app/data
+    restart: unless-stopped 

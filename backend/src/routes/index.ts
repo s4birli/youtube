@@ -1,21 +1,18 @@
-import { FastifyInstance } from 'fastify';
-import { youtubeRoutes } from './youtube.routes';
+import { Router } from 'express';
+import youtubeRoutes from './youtube.routes';
 
-/**
- * Register all routes with the Fastify instance
- */
-export function registerRoutes(fastify: ReturnType<typeof import('fastify').default>): void {
-  // Register routes under /api prefix
-  // Use type assertion to ensure the compiler knows this is a valid Fastify instance
-  const typedFastify = fastify as unknown as FastifyInstance;
+const router = Router();
 
-  void typedFastify.register(
-    async (instance: FastifyInstance) => {
-      // YouTube routes
-      await instance.register(youtubeRoutes, { prefix: '/youtube' });
+// Health check route
+router.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
+});
 
-      // Additional route groups can be added here
-    },
-    { prefix: '/api' },
-  );
-}
+// Register routes
+router.use('/youtube', youtubeRoutes);
+
+export default router;

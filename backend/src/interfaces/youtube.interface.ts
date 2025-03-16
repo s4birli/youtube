@@ -1,38 +1,42 @@
 import {
   VideoInfo,
+  VideoFormatResponse,
   DownloadRequest,
   DownloadResponse,
-  VideoFormatResponse,
   ProgressInfo,
 } from '../domain/video';
 
 /**
  * Interface for YouTube service
- * This enables dependency injection and makes testing easier
  */
 export interface IYoutubeService {
   /**
-   * Get video information from YouTube
+   * Get information about a YouTube video
    */
   getVideoInfo(url: string): Promise<VideoInfo>;
 
   /**
-   * Get available video formats
+   * Get available formats for a YouTube video
    */
   getVideoFormats(url: string): Promise<VideoFormatResponse>;
 
   /**
-   * Get direct download URL for a specific format
+   * Get download URL for a specific format
    */
   getDownloadUrl(videoId: string, formatId: string): Promise<string>;
 
   /**
-   * Download a video with specified options
+   * Download a YouTube video
    */
   downloadVideo(options: DownloadRequest): Promise<DownloadResponse>;
 
   /**
-   * Get a downloaded file details
+   * Get progress for a download
+   */
+  getProgress(downloadId: string): ProgressInfo;
+
+  /**
+   * Get a downloaded file
    */
   getDownloadedFile(downloadId: string): Promise<{
     filepath: string;
@@ -40,9 +44,4 @@ export interface IYoutubeService {
     contentType: string;
     filesize: number;
   }>;
-
-  /**
-   * Get download progress
-   */
-  getProgress(downloadId: string): ProgressInfo;
 }

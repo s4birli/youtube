@@ -4,38 +4,25 @@
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
         "esModuleInterop": true,
-        "strict": true,
-        "strictNullChecks": true,
-        "strictFunctionTypes": true,
-        "strictBindCallApply": true,
-        "strictPropertyInitialization": true,
-        "noImplicitThis": true,
-        "noImplicitAny": true,
-        "alwaysStrict": true,
-        "noUnusedLocals": true,
-        "noUnusedParameters": true,
-        "noImplicitReturns": true,
-        "noFallthroughCasesInSwitch": true,
         "forceConsistentCasingInFileNames": true,
+        "strict": true,
         "skipLibCheck": true,
         "outDir": "dist",
+        "rootDir": "src",
         "sourceMap": true,
         "declaration": true,
         "resolveJsonModule": true,
-        "baseUrl": ".",
-        "paths": {
-            "@/*": [
-                "src/*"
-            ]
-        }
+        "types": [
+            "node",
+            "jest"
+        ]
     },
     "include": [
-        "src/**/*",
-        "tests/**/*",
-        "vitest.config.ts"
+        "src/**/*"
     ],
     "exclude": [
         "node_modules",
-        "dist"
+        "dist",
+        "tests"
     ]
 }

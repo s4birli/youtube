@@ -6,6 +6,7 @@ import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { cache } from '../config/cache';
 import { AppError } from '../middleware/error-handler';
+import { WorkerPool } from './worker-pool.service';
 import {
   VideoInfo,
   VideoFormat,
@@ -32,6 +33,9 @@ interface DownloadProgress {
 // In-memory store for progress tracking
 // In a production app, this should be replaced with Redis or another external store
 export const downloadProgress = new Map<string, DownloadProgress>();
+
+// Create a worker pool instance
+const workerPool = new WorkerPool();
 
 /**
  * YouTube downloader service
@@ -302,28 +306,31 @@ export class YoutubeService implements IYoutubeService {
       this.activeDownloads++;
 
       try {
-        // Start download process
-        await youtubeDl(videoUrl, dlOptions);
+        // Use worker pool for the download task
+        logger.debug(`Starting download worker for ${videoUrl} with ID ${downloadId}`);
 
-        // Find the downloaded file
-        const files = await fs.readdir(downloadsDir);
-        const downloadedFile = files.find(file => file.includes(downloadId));
+        const result = await workerPool.runTask({
+          taskType: 'download',
+          taskData: {
+            videoUrl,
+            outputPath: path.join(downloadsDir, outputFilename),
+            options: dlOptions,
+            downloadId,
+          },
+        });
 
-        if (!downloadedFile) {
-          throw new Error('Downloaded file not found');
+        if (!result.success) {
+          throw new Error(result.error || 'Download failed in worker thread');
         }
 
-        const filePath = path.join(downloadsDir, downloadedFile);
-        const fileStats = await fs.stat(filePath);
-
-        // Update progress info
+        // Update progress info with result from worker
         downloadProgress.set(downloadId, {
           id: downloadId,
           progress: 100,
           status: 'completed',
-          filepath: filePath,
-          filesize: fileStats.size,
-          filename: downloadedFile,
+          filepath: result.filePath,
+          filesize: result.fileSize,
+          filename: path.basename(result.filePath),
           contentType,
           timestamp: Date.now(),
         });
@@ -333,9 +340,9 @@ export class YoutubeService implements IYoutubeService {
           id: downloadId,
           title: videoInfo.title,
           downloadUrl: `/api/youtube/download/${downloadId}`,
-          fileName: downloadedFile,
+          fileName: path.basename(result.filePath),
           contentType,
-          fileSize: fileStats.size,
+          fileSize: result.fileSize,
         };
       } finally {
         // Decrement active downloads

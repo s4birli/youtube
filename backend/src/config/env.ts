@@ -32,6 +32,9 @@ const envSchema = z.object({
   // Cache settings
   CACHE_TTL: z.coerce.number().default(1800), // 30 minutes in seconds
   CACHE_MAX_ITEMS: z.coerce.number().default(100),
+
+  // Worker pool settings
+  WORKER_POOL_SIZE: z.coerce.number().default(4),
 });
 
 // Parse environment variables

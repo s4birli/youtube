@@ -102,14 +102,55 @@ export class YoutubeController {
       const { filepath, filename, contentType, filesize } =
         await youtubeService.getDownloadedFile(downloadId);
 
-      // Set appropriate headers for download
-      res.header('Content-Type', contentType);
-      res.header('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
-      res.header('Content-Length', filesize.toString());
+      const stat = fs.statSync(filepath);
+      const fileSize = stat.size;
 
-      // Stream the file
-      const fileStream = fs.createReadStream(filepath);
-      fileStream.pipe(res);
+      // Parse Range header
+      const range = req.headers.range;
+
+      if (range) {
+        // Range request
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const chunkSize = (end - start) + 1;
+
+        logger.debug(`Range request for ${downloadId}: ${start}-${end}/${fileSize}`);
+
+        // Set headers for partial content
+        res.status(206);
+        res.header('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+        res.header('Accept-Ranges', 'bytes');
+        res.header('Content-Length', chunkSize.toString());
+        res.header('Content-Type', contentType);
+        res.header('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+
+        // Create read stream with range
+        const fileStream = fs.createReadStream(filepath, { start, end });
+        fileStream.pipe(res);
+      } else {
+        // No range request, stream the whole file
+        logger.debug(`Full file stream for ${downloadId}: ${fileSize} bytes`);
+
+        // Set headers
+        res.header('Accept-Ranges', 'bytes');
+        res.header('Content-Length', fileSize.toString());
+        res.header('Content-Type', contentType);
+        res.header('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+
+        // Stream the file
+        const fileStream = fs.createReadStream(filepath);
+
+        // Handle errors in stream
+        fileStream.on('error', (error) => {
+          logger.error(error, `Error streaming file ${filepath}`);
+          if (!res.headersSent) {
+            next(new AppError(500, 'Error streaming file'));
+          }
+        });
+
+        fileStream.pipe(res);
+      }
     } catch (error) {
       next(error);
     }

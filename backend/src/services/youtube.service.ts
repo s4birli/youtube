@@ -255,7 +255,6 @@ export class YoutubeService implements IYoutubeService {
       const downloadsDir = path.join(this.downloadDir, 'downloads');
 
       // Create options object for yt-dlp
-      // dlOptions oluşturma kısmı (düzeltilmiş)
       const dlOptions: Record<string, string | boolean | number | string[]> = {
         output: path.join(downloadsDir, `${outputFilename}.%(ext)s`),
         noCheckCertificate: true,
@@ -264,22 +263,21 @@ export class YoutubeService implements IYoutubeService {
         verbose: true,
       };
 
-      // Format seçimi için:
+      // Format selection
       if (formatId && !extractAudio) {
-        // Video indirme, belirli çözünürlükler için format belirteçleri kullan
+        // Video download with specific format
         dlOptions.format = `${formatId}+bestaudio/best[ext=mp4]`;
         dlOptions.mergeOutputFormat = 'mp4';
-
         outputFilename = `${outputFilename}.mp4`;
       } else if (extractAudio) {
-        // Ses indirme için
+        // Audio extraction
         dlOptions.extractAudio = true;
         dlOptions.audioFormat = audioFormat || 'mp3';
         dlOptions.audioQuality = quality ? parseInt(quality, 10) : 0;
         contentType = `audio/${audioFormat || 'mp3'}`;
         outputFilename = `${outputFilename}.${audioFormat || 'mp3'}`;
       } else {
-        // Varsayılan: en iyi video ve ses
+        // Default: best video and audio
         dlOptions.format = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best';
         dlOptions.mergeOutputFormat = 'mp4';
         dlOptions.postprocessorArgs = ['FFmpeg:-vcodec h264 -acodec aac'];
@@ -309,6 +307,13 @@ export class YoutubeService implements IYoutubeService {
         const result = await ytDlpExec(videoUrl, dlOptions);
         logger.debug('yt-dlp download result:', result);
 
+        // Update progress to 50% after yt-dlp finishes
+        downloadProgress.set(downloadId, {
+          ...downloadProgress.get(downloadId)!,
+          progress: 50,
+          timestamp: Date.now(),
+        });
+
         // Search for the downloaded file
         const files = await fs.readdir(downloadsDir);
         const downloadedFile = files.find(file => file.includes(downloadId));
@@ -320,9 +325,49 @@ export class YoutubeService implements IYoutubeService {
         }
 
         const filePath = path.join(downloadsDir, downloadedFile);
+
+        // Add a delay to ensure file is fully written
+        logger.debug(`Waiting for file to be fully written: ${filePath}`);
+        // Wait 5 seconds to ensure file is fully written
+        await new Promise(resolve => setTimeout(resolve, 5000));
+
+        // Update progress to 75%
+        downloadProgress.set(downloadId, {
+          ...downloadProgress.get(downloadId)!,
+          progress: 75,
+          timestamp: Date.now(),
+        });
+
+        // Verify file exists and has content
         const fileStats = await fs.stat(filePath);
 
-        // Update progress info
+        if (fileStats.size === 0) {
+          logger.error(`Downloaded file is empty: ${filePath}`);
+          throw new Error('Downloaded file is empty');
+        }
+
+        // Verify file is readable
+        try {
+          // Try to read the first few bytes to verify file is accessible
+          const fd = await fs.open(filePath, 'r');
+          const buffer = Buffer.alloc(1024);
+          const { bytesRead } = await fd.read(buffer, 0, 1024, 0);
+          await fd.close();
+
+          if (bytesRead === 0) {
+            logger.error(`File exists but cannot be read: ${filePath}`);
+            throw new Error('File exists but cannot be read');
+          }
+
+          logger.debug(`Successfully verified file readability: ${filePath}`);
+        } catch (readError) {
+          logger.error(`Error verifying file readability: ${filePath}`, readError instanceof Error ? readError.message : String(readError));
+          throw new Error(`File verification failed: ${readError instanceof Error ? readError.message : String(readError)}`);
+        }
+
+        logger.info(`Download completed successfully. File: ${filePath}, Size: ${fileStats.size} bytes`);
+
+        // Update progress info to completed
         downloadProgress.set(downloadId, {
           id: downloadId,
           progress: 100,
@@ -344,7 +389,6 @@ export class YoutubeService implements IYoutubeService {
           fileSize: fileStats.size,
         };
       } catch (directError) {
-        // Hata durumunda
         logger.error(directError, 'yt-dlp download failed with details:');
         throw directError;
       } finally {

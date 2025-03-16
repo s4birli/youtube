@@ -46,9 +46,7 @@ const VideoSearch = ({
         onLoadingChange(true);
 
         try {
-            console.log('Sending request to fetch video info for URL:', url);
             const videoInfo = await YoutubeService.getVideoInfo(url);
-            console.log('Received video info response:', videoInfo);
 
             if (!videoInfo || !videoInfo.videoDetails) {
                 throw new Error('Invalid response format from server');

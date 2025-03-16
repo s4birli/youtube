@@ -1,4 +1,4 @@
-import { memo, useState, useEffect } from 'react';
+import { memo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGithub } from '@fortawesome/free-brands-svg-icons';
@@ -13,29 +13,18 @@ const HomePage = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        console.log('Current state:', {
-            videoData,
-            isLoading,
-            error,
-            initialVideoUrl
-        });
-    }, [videoData, isLoading, error, initialVideoUrl]);
 
     const handleVideoInfo = (data: VideoResponse) => {
-        console.log('handleVideoInfo called with data:', data);
         setVideoData(data);
         setError(null);
     };
 
     const handleError = (message: string) => {
-        console.log('handleError called with message:', message);
         setError(message);
         setVideoData(null);
     };
 
     const handleLoadingChange = (loading: boolean) => {
-        console.log('handleLoadingChange called with loading:', loading);
         setIsLoading(loading);
     };
 

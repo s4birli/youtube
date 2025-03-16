@@ -54,12 +54,9 @@ export const YoutubeService = {
      */
     async getVideoInfo(url: string): Promise<VideoResponse> {
         try {
-            console.log('API: Sending request to:', API_ENDPOINTS.VIDEO_INFO, 'with data:', { url });
             const response = await api.post(API_ENDPOINTS.VIDEO_INFO, { url });
-            console.log('API: Raw response:', response);
 
             const data = response.data;
-            console.log('API: Parsed data:', data);
 
             // Validate response structure
             if (!data || typeof data !== 'object') {

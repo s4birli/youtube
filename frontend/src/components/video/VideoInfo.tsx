@@ -13,22 +13,19 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
     const [selectedFormat, setSelectedFormat] = useState<VideoFormat | null>(null);
     const [isDownloading, setIsDownloading] = useState(false);
     const [downloadProgress, setDownloadProgress] = useState(0);
-    const [downloadId, setDownloadId] = useState<string | null>(null);
     const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
     const [showDownloadButton, setShowDownloadButton] = useState(false);
-    const [downloadFilename, setDownloadFilename] = useState<string | null>(null);
+    const [selectedResolution, setSelectedResolution] = useState<string | null>(null);
 
+    // Early return if no data - AFTER all hooks are declared
     if (!videoData || !videoData.videoDetails) return null;
 
-    const { videoDetails, formats } = videoData;
-    const { title, thumbnail, duration } = videoDetails;
+    const { videoDetails } = videoData;
+    const { title, duration } = videoDetails;
 
     // Use the highest quality thumbnail (maxresdefault.jpg)
     const videoId = videoDetails.id;
     const highQualityThumbnail = `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
-
-    // Log all available formats for debugging
-    console.log('All available formats:', formats);
 
     // Helper function to normalize resolution string
     const normalizeResolution = (resolution: string | undefined): string => {
@@ -50,88 +47,101 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
     // Standard YouTube resolutions we want to display
     const standardResolutions = ['1080p', '720p', '360p'];
 
-    // Get all video formats (with video codec)
-    console.log('Formats:', formats.filter(format => format.vcodec && format.vcodec !== 'none'));
-    const allVideoFormats = formats
-        .filter(format => format.vcodec && format.vcodec !== 'none')
-        .map(format => ({
-            ...format,
-            normalizedResolution: format.format_id && itagResolutionMap[format.format_id]
-                ? itagResolutionMap[format.format_id]
-                : normalizeResolution(format.resolution)
-        }))
-        // Filter out resolutions higher than 1080p
-        .filter(format => {
-            const resolution = format.normalizedResolution ? parseInt(format.normalizedResolution.replace('p', '')) : 0;
-            return resolution <= 1080;
-        })
-        // Sort from highest to lowest quality
-        .sort((a, b) => {
-            const resA = a.normalizedResolution ? parseInt(a.normalizedResolution.replace('p', '')) : 0;
-            const resB = b.normalizedResolution ? parseInt(b.normalizedResolution.replace('p', '')) : 0;
-            return resB - resA;
+    // Get display text for resolution (simplified for buttons)
+    const getResolutionDisplayText = (format: VideoFormat): string => {
+        if (format.normalizedResolution) {
+            return format.normalizedResolution;
+        }
+        if (format.height) {
+            return `${format.height}p`;
+        }
+        return 'Unknown';
+    };
+
+    // Process video formats outside of the conditional rendering
+    const processVideoFormats = () => {
+        if (!videoData || !videoData.videoDetails) return [];
+
+        const { formats } = videoData;
+
+        // Get all video formats (with video codec)
+        const allVideoFormats = formats
+            .filter(format => format.vcodec && format.vcodec !== 'none')
+            .map(format => ({
+                ...format,
+                normalizedResolution: format.format_id && itagResolutionMap[format.format_id]
+                    ? itagResolutionMap[format.format_id]
+                    : normalizeResolution(format.resolution)
+            }))
+            // Filter out resolutions higher than 1080p
+            .filter(format => {
+                const resolution = format.normalizedResolution ? parseInt(format.normalizedResolution.replace('p', '')) : 0;
+                return resolution <= 1080;
+            })
+            // Sort from highest to lowest quality
+            .sort((a, b) => {
+                const resA = a.normalizedResolution ? parseInt(a.normalizedResolution.replace('p', '')) : 0;
+                const resB = b.normalizedResolution ? parseInt(b.normalizedResolution.replace('p', '')) : 0;
+                return resB - resA;
+            });
+
+        // Find the closest standard resolution for each format
+        allVideoFormats.forEach(format => {
+            if (!format.normalizedResolution) return;
+
+            const resValue = parseInt(format.normalizedResolution.replace('p', ''));
+
+            // Map non-standard resolutions to the closest standard resolution
+            if (!standardResolutions.includes(format.normalizedResolution)) {
+                if (resValue >= 1080) format.normalizedResolution = '1080p';
+                else if (resValue >= 720) format.normalizedResolution = '720p';
+                else format.normalizedResolution = '360p';
+            }
         });
 
-    console.log('Filtered video formats:', allVideoFormats);
+        // Group formats by standard resolutions only
+        const videoFormatsByResolution: { [key: string]: VideoFormat } = {};
 
-    // Find the closest standard resolution for each format
-    allVideoFormats.forEach(format => {
-        if (!format.normalizedResolution) return;
-
-        const resValue = parseInt(format.normalizedResolution.replace('p', ''));
-
-        // Map non-standard resolutions to the closest standard resolution
-        if (!standardResolutions.includes(format.normalizedResolution)) {
-            if (resValue >= 1080) format.normalizedResolution = '1080p';
-            else if (resValue >= 720) format.normalizedResolution = '720p';
-            else format.normalizedResolution = '360p';
-        }
-    });
-
-    // Group formats by standard resolutions only
-    const videoFormatsByResolution: { [key: string]: VideoFormat } = {};
-
-    // First, attempt to find the standard itag formats (137, 136, 18)
-    const standardItags = ['137', '136', '18']; // 1080p, 720p, 360p
-    standardItags.forEach(itag => {
-        const format = allVideoFormats.find(f => f.format_id === itag);
-        if (format) {
-            const resolution = itagResolutionMap[itag];
-            videoFormatsByResolution[resolution] = format;
-        }
-    });
-
-    // Then look for formats with standard resolutions if we don't have them yet
-    standardResolutions.forEach(resolution => {
-        if (!videoFormatsByResolution[resolution]) {
-            const format = allVideoFormats.find(f => f.normalizedResolution === resolution);
+        // First, attempt to find the standard itag formats (137, 136, 18)
+        const standardItags = ['137', '136', '18']; // 1080p, 720p, 360p
+        standardItags.forEach(itag => {
+            const format = allVideoFormats.find(f => f.format_id === itag);
             if (format) {
+                const resolution = itagResolutionMap[itag];
                 videoFormatsByResolution[resolution] = format;
             }
-        }
-    });
-
-    // Get only the standard resolution formats
-    let videoFormats = standardResolutions
-        .filter(res => videoFormatsByResolution[res])
-        .map(res => videoFormatsByResolution[res])
-        .sort((a, b) => {
-            const resA = a.normalizedResolution ? parseInt(a.normalizedResolution.replace('p', '')) : 0;
-            const resB = b.normalizedResolution ? parseInt(b.normalizedResolution.replace('p', '')) : 0;
-            return resB - resA;
         });
 
-    console.log('Final standard video formats to display:', videoFormats);
+        // Then look for formats with standard resolutions if we don't have them yet
+        standardResolutions.forEach(resolution => {
+            if (!videoFormatsByResolution[resolution]) {
+                const format = allVideoFormats.find(f => f.normalizedResolution === resolution);
+                if (format) {
+                    videoFormatsByResolution[resolution] = format;
+                }
+            }
+        });
 
-    // Get the best audio format (we'll only show one)
-    const audioFormats = formats
-        .filter(format =>
-            format.acodec !== 'none' &&
-            format.vcodec === 'none'
-        )
-        .sort((a, b) => (b.filesize || 0) - (a.filesize || 0));
+        // Get only the standard resolution formats
+        return standardResolutions
+            .filter(res => videoFormatsByResolution[res])
+            .map(res => videoFormatsByResolution[res])
+            .sort((a, b) => {
+                const resA = a.normalizedResolution ? parseInt(a.normalizedResolution.replace('p', '')) : 0;
+                const resB = b.normalizedResolution ? parseInt(b.normalizedResolution.replace('p', '')) : 0;
+                return resB - resA;
+            });
+    };
 
-    const bestAudioFormat = audioFormats.length > 0 ? audioFormats[0] : null;
+    const videoFormats = processVideoFormats();
+
+    // Initialize selected resolution with highest quality - now this is always called
+    useEffect(() => {
+        if (videoFormats.length > 0 && !selectedResolution) {
+            setSelectedResolution(getResolutionDisplayText(videoFormats[0]));
+            setSelectedFormat(videoFormats[0]);
+        }
+    }, [videoFormats, selectedResolution]);
 
     // Format the duration to mm:ss
     const formatDuration = (seconds: number | string): string => {
@@ -144,34 +154,109 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // Get display text for resolution (simplified for buttons)
-    const getResolutionDisplayText = (format: VideoFormat): string => {
-        if (format.normalizedResolution) {
-            return format.normalizedResolution;
-        }
-        if (format.height) {
-            return `${format.height}p`;
-        }
-        return 'Unknown';
-    };
-
-    // State for selected resolution
-    const [selectedResolution, setSelectedResolution] = useState<string | null>(null);
-
-    // Initialize selected resolution with highest quality
-    useEffect(() => {
-        if (videoFormats.length > 0 && !selectedResolution) {
-            setSelectedResolution(getResolutionDisplayText(videoFormats[0]));
-            setSelectedFormat(videoFormats[0]);
-        }
-    }, [videoFormats]);
-
     // Handle resolution selection
     const handleResolutionSelect = (resolution: string) => {
         setSelectedResolution(resolution);
         const format = videoFormats.find(f => getResolutionDisplayText(f) === resolution);
         if (format) {
             setSelectedFormat(format);
+        }
+    };
+
+    // Direct download function
+    const initiateDirectDownload = (downloadUrl: string, filename: string) => {
+        const fullUrl = "http://localhost:3000" + downloadUrl;
+
+        try {
+            const newWindow = window.open(fullUrl, '_blank');
+
+            if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+                throw new Error("Popup blocked");
+            }
+
+            return;
+        } catch (error) {
+            console.error("Error opening new window:", error);
+        }
+
+        try {
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            document.body.appendChild(iframe);
+            iframe.src = fullUrl;
+
+            setTimeout(() => {
+                if (document.body.contains(iframe)) {
+                    document.body.removeChild(iframe);
+                }
+            }, 5000);
+
+            return;
+        } catch (error) {
+            console.error("Error using iframe method:", error);
+        }
+
+        // Method 3: Show manual download link to user
+        try {
+            const downloadButton = document.createElement('div');
+            downloadButton.style.position = 'fixed';
+            downloadButton.style.bottom = '20px';
+            downloadButton.style.right = '20px';
+            downloadButton.style.backgroundColor = '#4CAF50';
+            downloadButton.style.color = 'white';
+            downloadButton.style.padding = '15px 20px';
+            downloadButton.style.borderRadius = '5px';
+            downloadButton.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+            downloadButton.style.zIndex = '9999';
+            downloadButton.style.cursor = 'pointer';
+            downloadButton.style.fontWeight = 'bold';
+            downloadButton.style.textAlign = 'center';
+            downloadButton.innerHTML = `
+                <div>Large file (1GB+)</div>
+                <div style="margin-top: 8px;">Click here to download</div>
+                <div style="font-size: 12px; margin-top: 5px;">${filename}</div>
+            `;
+
+            downloadButton.onclick = () => {
+                window.open(fullUrl, '_blank');
+
+                const infoDiv = document.createElement('div');
+                infoDiv.style.position = 'fixed';
+                infoDiv.style.top = '20px';
+                infoDiv.style.left = '50%';
+                infoDiv.style.transform = 'translateX(-50%)';
+                infoDiv.style.backgroundColor = '#333';
+                infoDiv.style.color = 'white';
+                infoDiv.style.padding = '10px 15px';
+                infoDiv.style.borderRadius = '5px';
+                infoDiv.style.zIndex = '10000';
+                infoDiv.textContent = 'Download started. Check your browser\'s download manager.';
+
+                document.body.appendChild(infoDiv);
+
+                setTimeout(() => {
+                    if (document.body.contains(infoDiv)) {
+                        document.body.removeChild(infoDiv);
+                    }
+                }, 5000);
+            };
+
+            document.body.appendChild(downloadButton);
+
+            alert("File is very large (1GB+). Click the green button in the bottom right corner to start the download.");
+
+            // Remove the button after 60 seconds
+            setTimeout(() => {
+                if (document.body.contains(downloadButton)) {
+                    document.body.removeChild(downloadButton);
+                }
+            }, 60000);
+
+            return;
+        } catch (error) {
+            console.error("Error showing manual download button:", error);
+
+            alert(`Download could not be started. Please copy and paste this URL in your browser:\n\n${fullUrl}`);
         }
     };
 
@@ -183,7 +268,7 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
             setIsDownloading(true);
             setDownloadProgress(0);
             setShowDownloadButton(false);
-            setDownloadFilename(null);
+            setDownloadUrl(null);
 
             const response = await YoutubeService.downloadVideo({
                 videoUrl: `https://www.youtube.com/watch?v=${videoDetails.id}`,
@@ -191,40 +276,17 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
                 quality: '0'
             });
 
-            setDownloadId(response.id);
+            // Use the download endpoint directly
+            const downloadUrl = `${import.meta.env.VITE_API_BASE_URL || ''}/api/youtube/download/${response.id}`;
+            const filename = response.fileName || `${videoDetails.title}.mp4`;
 
-            // Start checking progress
-            const progressInterval = setInterval(async () => {
-                try {
-                    const progressInfo = await YoutubeService.getDownloadProgress(response.id);
-                    setDownloadProgress(progressInfo.progress);
+            setDownloadUrl(downloadUrl);
+            setIsDownloading(false);
+            setShowDownloadButton(true);
 
-                    if (progressInfo.progress === 100) {
-                        clearInterval(progressInterval);
-                        // Use the download endpoint directly
-                        const downloadUrl = `${import.meta.env.VITE_API_BASE_URL || ''}/api/youtube/download/${response.id}`;
-                        setDownloadUrl(downloadUrl);
-                        setIsDownloading(false);
-                        setDownloadFilename(response.fileName || `${videoDetails.title}.mp4`);
-                        setShowDownloadButton(true);
+            // Initiate download directly
+            initiateDirectDownload(downloadUrl, filename);
 
-                        // Create a hidden iframe for the download instead of window.open
-                        const iframe = document.createElement('iframe');
-                        iframe.style.display = 'none';
-                        document.body.appendChild(iframe);
-                        iframe.src = downloadUrl;
-
-                        // Clean up iframe after download starts
-                        setTimeout(() => {
-                            document.body.removeChild(iframe);
-                        }, 5000);
-                    }
-                } catch (error) {
-                    console.error('Error checking progress:', error);
-                    clearInterval(progressInterval);
-                    setIsDownloading(false);
-                }
-            }, 1000);
         } catch (error) {
             console.error('Error starting download:', error);
             setIsDownloading(false);
@@ -236,61 +298,25 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
             setIsDownloading(true);
             setDownloadProgress(0);
             setShowDownloadButton(false);
-            setDownloadFilename(null);
+            setDownloadUrl(null);
 
             const response = await YoutubeService.downloadMP3(`https://www.youtube.com/watch?v=${videoDetails.id}`);
-            setDownloadId(response.id);
 
-            // Start checking progress
-            const progressInterval = setInterval(async () => {
-                try {
-                    const progressInfo = await YoutubeService.getDownloadProgress(response.id);
-                    setDownloadProgress(progressInfo.progress);
+            // Use the download endpoint directly
+            const downloadUrl = `${import.meta.env.VITE_API_BASE_URL || ''}/api/youtube/download/${response.id}`;
+            const filename = response.fileName || `${videoDetails.title}.mp3`;
 
-                    if (progressInfo.progress === 100) {
-                        clearInterval(progressInterval);
-                        // Use the download endpoint directly
-                        const downloadUrl = `${import.meta.env.VITE_API_BASE_URL || ''}/api/youtube/download/${response.id}`;
-                        setDownloadUrl(downloadUrl);
-                        setIsDownloading(false);
-                        setDownloadFilename(response.fileName || `${videoDetails.title}.mp3`);
-                        setShowDownloadButton(true);
+            setDownloadUrl(downloadUrl);
+            setIsDownloading(false);
+            setShowDownloadButton(true);
 
-                        // Create a hidden iframe for the download instead of window.open
-                        const iframe = document.createElement('iframe');
-                        iframe.style.display = 'none';
-                        document.body.appendChild(iframe);
-                        iframe.src = downloadUrl;
+            // Initiate download directly
+            initiateDirectDownload(downloadUrl, filename);
 
-                        // Clean up iframe after download starts
-                        setTimeout(() => {
-                            document.body.removeChild(iframe);
-                        }, 5000);
-                    }
-                } catch (error) {
-                    console.error('Error checking progress:', error);
-                    clearInterval(progressInterval);
-                    setIsDownloading(false);
-                }
-            }, 1000);
         } catch (error) {
             console.error('Error starting MP3 download:', error);
             setIsDownloading(false);
         }
-    };
-
-    // Manual download helper for the backup button
-    const triggerManualDownload = () => {
-        if (!downloadUrl) return;
-
-        // Create and click an actual anchor element
-        const a = document.createElement('a');
-        a.href = downloadUrl;
-        a.download = downloadFilename || 'download';
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
     };
 
     return (
@@ -402,25 +428,16 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
                                 ></div>
                             </div>
                             <p className="text-xs text-center mt-1 text-gray-400">
-                                {downloadProgress === 100 ? 'Processing...' : `Downloading: ${downloadProgress}%`}
+                                {downloadProgress === 100 ? 'Download ready!' : 'Preparing download...'}
                             </p>
                         </div>
                     )}
 
-                    {/* Manual download button (shows after processing is complete) */}
+                    {/* Download status message (shows after processing is complete) */}
                     {showDownloadButton && downloadUrl && (
                         <div className="mt-4">
-                            <button
-                                onClick={triggerManualDownload}
-                                className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-md flex items-center justify-center"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                                </svg>
-                                Click to Download
-                            </button>
-                            <p className="text-xs text-center mt-1 text-gray-400">
-                                If download didn't start automatically, click the button above
+                            <p className="text-sm text-center text-green-400">
+                                Download started! Check your downloads folder.
                             </p>
                         </div>
                     )}

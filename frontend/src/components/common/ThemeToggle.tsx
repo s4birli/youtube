@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 
 const ThemeToggle = () => {
-    const { theme, toggleTheme, autoTheme, toggleAutoTheme } = useTheme();
+    const { theme, toggleTheme } = useTheme();
 
     return (
         <div className="flex items-center space-x-2">

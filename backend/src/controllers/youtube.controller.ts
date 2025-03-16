@@ -133,80 +133,102 @@ export class YoutubeController {
       const { filepath, filename, contentType } =
         await youtubeService.getDownloadedFile(downloadId);
 
-      const stat = fs.statSync(filepath);
-      const fileSize = stat.size;
+      // Verify file exists and has content
+      try {
+        const stat = fs.statSync(filepath);
 
-      // Set a simplified filename to avoid browser issues
-      const safeFilename = filename.replace(/[^\w.-]/g, '_');
+        if (!stat.isFile()) {
+          logger.error(`Path is not a file: ${filepath}`);
+          throw new AppError(500, 'Invalid file path');
+        }
+
+        if (stat.size === 0) {
+          logger.error(`File is empty: ${filepath}`);
+          throw new AppError(500, 'Download file is empty');
+        }
+
+        logger.info(`Found file: ${filepath}, Size: ${stat.size} bytes`);
+      } catch (error) {
+        if (error instanceof AppError) throw error;
+        logger.error(`File not accessible: ${filepath}`, error instanceof Error ? error.message : String(error));
+        throw new AppError(404, 'Download file not accessible');
+      }
 
       // Get file extension
-      const fileExt = path.extname(safeFilename);
-      // Create a clean filename (remove internal ID)
-      const cleanFilename = safeFilename.replace(/-[0-9a-f-]+\.(mp4|mp3)$/i, fileExt);
+      const fileExt = path.extname(filename);
 
-      // Additional CORS headers for file download
+      // Create a clean filename (remove internal ID)
+      const cleanFilename = filename.replace(/-[0-9a-f-]+\.(mp4|mp3)$/i, fileExt);
+      const safeFilename = cleanFilename.replace(/[^\w.-]/g, '_');
+
+      // CORS headers for file download
       res.header('Access-Control-Allow-Origin', '*');
       res.header('Access-Control-Allow-Methods', 'GET');
       res.header('Access-Control-Allow-Headers', 'Content-Type, Content-Disposition');
       res.header('Cross-Origin-Resource-Policy', 'cross-origin');
 
-      // Parse Range header
-      const range = req.headers.range;
+      // Set proper content type
+      res.header('Content-Type', contentType);
 
-      if (range) {
-        // Range request
-        const parts = range.replace(/bytes=/, '').split('-');
-        const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-        const chunkSize = end - start + 1;
+      // Set correct content disposition for download
+      res.header(
+        'Content-Disposition',
+        `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`
+      );
 
-        logger.debug(`Range request for ${downloadId}: ${start}-${end}/${fileSize}`);
-
-        // Set headers for partial content
-        res.status(206);
-        res.header('Content-Range', `bytes ${start}-${end}/${fileSize}`);
-        res.header('Accept-Ranges', 'bytes');
-        res.header('Content-Length', chunkSize.toString());
-        res.header('Content-Type', contentType);
-
-        // Improved content disposition - using both standard and UTF-8 encoded version for better browser compatibility
-        res.header(
-          'Content-Disposition',
-          `attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`
-        );
-
-        // Create read stream with range
-        const fileStream = fs.createReadStream(filepath, { start, end });
-        fileStream.pipe(res);
-      } else {
-        // No range request, stream the whole file
-        logger.debug(`Full file stream for ${downloadId}: ${fileSize} bytes`);
-
-        // Set headers
-        res.header('Accept-Ranges', 'bytes');
-        res.header('Content-Length', fileSize.toString());
-        res.header('Content-Type', contentType);
-
-        // Improved content disposition - using both standard and UTF-8 encoded version for better browser compatibility
-        res.header(
-          'Content-Disposition',
-          `attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`
-        );
-
-        // Stream the file
-        const fileStream = fs.createReadStream(filepath);
-
-        // Handle errors in stream
-        fileStream.on('error', error => {
-          logger.error(error, `Error streaming file ${filepath}`);
-          if (!res.headersSent) {
-            next(new AppError(500, 'Error streaming file'));
+      // Try using download method first
+      try {
+        logger.debug(`Sending file using res.download: ${filepath}`);
+        return res.download(filepath, safeFilename, (err) => {
+          if (err) {
+            logger.error(`Error sending file via res.download: ${err.message}`);
+            // Don't call next() here as we'll try the fallback method
           }
         });
-
-        fileStream.pipe(res);
+      } catch (downloadError) {
+        logger.error(`Exception in res.download: ${downloadError instanceof Error ? downloadError.message : String(downloadError)}`);
+        // Continue to fallback methods
       }
+
+      // Fallback 1: Try sendFile method
+      try {
+        logger.debug(`Trying res.sendFile: ${filepath}`);
+        return res.sendFile(filepath, {
+          headers: {
+            'Content-Disposition': `attachment; filename="${safeFilename}"`,
+            'Content-Type': contentType
+          }
+        });
+      } catch (sendFileError) {
+        logger.error(`Exception in res.sendFile: ${sendFileError instanceof Error ? sendFileError.message : String(sendFileError)}`);
+        // Continue to final fallback
+      }
+
+      // Fallback 2: Use pipe method as a last resort
+      logger.debug(`Using createReadStream as final fallback`);
+      const fileStream = fs.createReadStream(filepath);
+
+      // Explicitly get file size for Content-Length header
+      const stat = fs.statSync(filepath);
+      res.header('Content-Length', stat.size.toString());
+
+      // Handle stream errors
+      fileStream.on('error', (error) => {
+        logger.error(`Error in read stream: ${error.message}`);
+        if (!res.headersSent) {
+          next(new AppError(500, 'Error streaming file'));
+        }
+      });
+
+      // Log when streaming completes
+      fileStream.on('end', () => {
+        logger.debug(`Successfully completed streaming file: ${filepath}`);
+      });
+
+      // Pipe the file to the response
+      fileStream.pipe(res);
     } catch (error) {
+      logger.error(`Error in streamDownload: ${error instanceof Error ? error.message : String(error)}`);
       next(error);
     }
   }

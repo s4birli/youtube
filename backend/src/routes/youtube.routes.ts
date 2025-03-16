@@ -39,4 +39,10 @@ router.get('/download/:downloadId', youtubeController.streamDownload);
  */
 router.get('/progress/:downloadId', youtubeController.getDownloadProgress);
 
+/**
+ * @route   POST /api/youtube/download-mp3
+ * @desc    Download a video as MP3
+ */
+router.post('/download-mp3', youtubeController.downloadMP3);
+
 export default router;

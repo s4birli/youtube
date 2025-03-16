@@ -2,6 +2,7 @@ import express, { Express } from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import path from 'path';
+import cors from 'cors';
 import { env } from './config/env';
 import { logger } from './config/logger';
 import { errorHandler } from './middleware/error-handler';
@@ -12,6 +13,13 @@ import routes from './routes';
  */
 export function createApp(): Express {
   const app = express();
+
+  // Configure CORS
+  app.use(cors({
+    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  }));
 
   // Middleware
   app.use(helmet());

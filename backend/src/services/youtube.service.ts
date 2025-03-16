@@ -1,7 +1,7 @@
 import path from 'path';
 import fs from 'fs/promises';
 import { randomUUID } from 'crypto';
-import youtubeDl from 'youtube-dl-exec';
+import ytDlpExec from 'yt-dlp-exec';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { cache } from '../config/cache';
@@ -101,7 +101,7 @@ export class YoutubeService implements IYoutubeService {
 
       // Race between the actual request and the timeout
       const result = await Promise.race([
-        youtubeDl(url, {
+        ytDlpExec(url, {
           dumpSingleJson: true,
           noCheckCertificates: true,
           noWarnings: true,
@@ -250,15 +250,6 @@ export class YoutubeService implements IYoutubeService {
 
       // Get video info first
       const videoInfo = await this.getVideoInfo(videoUrl);
-      let selectedFormat: VideoFormat | undefined;
-
-      // Find the format if formatId is specified
-      if (formatId) {
-        selectedFormat = videoInfo.formats.find(f => f.format_id === formatId);
-        if (!selectedFormat) {
-          throw new AppError(404, `Format ${formatId} not found`);
-        }
-      }
 
       // Update filename based on title and format
       const sanitizedTitle = this.sanitizeFilename(videoInfo.title);
@@ -268,21 +259,40 @@ export class YoutubeService implements IYoutubeService {
       // Path to downloads subdirectory
       const downloadsDir = path.join(this.downloadDir, 'downloads');
 
-      // Create options object
+      // Create options object for yt-dlp
       const dlOptions: Record<string, string | boolean | number | string[]> = {
         output: path.join(downloadsDir, `${outputFilename}.%(ext)s`),
         noCheckCertificates: true,
         noWarnings: true,
         addHeader: ['referer:youtube.com', 'user-agent:Mozilla/5.0'],
+        verbose: true,
       };
 
-      // Handle format selection
+      // Handle format selection with yt-dlp
       if (formatId && !extractAudio) {
-        dlOptions.format = formatId;
+        // For video downloads, use format selectors for specific resolutions
+        // but make sure to include audio
+        if (formatId === '137') {
+          // 1080p
+          dlOptions.format = 'bv*[height=1080]+ba/b[height<=1080] / best';
+        } else if (formatId === '136') {
+          // 720p
+          dlOptions.format = 'bv*[height=720]+ba/b[height<=720] / best';
+        } else if (formatId === '18') {
+          // 360p
+          dlOptions.format = 'bv*[height=360]+ba/b[height<=360] / best';
+        } else {
+          // Default to requested format + audio
+          dlOptions.format = `${formatId}+ba/b`;
+        }
+
+        // Ensure we get MP4 output
+        dlOptions.mergeFormat = 'mp4';
+        outputFilename = `${outputFilename}.mp4`;
       } else if (extractAudio) {
+        // For audio downloads
         dlOptions.extractAudio = true;
         dlOptions.audioFormat = audioFormat || 'mp3';
-        // Convert quality to number (0 is best)
         dlOptions.audioQuality = quality ? parseInt(quality, 10) : 0;
         contentType = `audio/${audioFormat || 'mp3'}`;
         outputFilename = `${outputFilename}.${audioFormat || 'mp3'}`;
@@ -291,6 +301,8 @@ export class YoutubeService implements IYoutubeService {
         dlOptions.format = 'best';
         outputFilename = `${outputFilename}.mp4`;
       }
+
+      logger.debug(`yt-dlp options: ${JSON.stringify(dlOptions)}`);
 
       // Set up progress tracking
       downloadProgress.set(downloadId, {
@@ -306,34 +318,32 @@ export class YoutubeService implements IYoutubeService {
       this.activeDownloads++;
 
       try {
-        // Use worker pool for the download task
-        logger.debug(`Starting download worker for ${videoUrl} with ID ${downloadId}`);
+        // Ensure directory exists
+        await fs.mkdir(downloadsDir, { recursive: true });
 
-        const result = await workerPool.runTask({
-          taskType: 'download',
-          taskData: {
-            videoUrl,
-            outputPath: path.join(downloadsDir, outputFilename),
-            options: dlOptions,
-            downloadId,
-          },
-        });
+        // Use yt-dlp directly
+        const result = await ytDlpExec(videoUrl, dlOptions);
+        logger.debug('yt-dlp download result:', result);
 
-        if (!result.success) {
-          throw new Error(result.error ? String(result.error) : 'Download failed in worker thread');
+        // Search for the downloaded file
+        const files = await fs.readdir(downloadsDir);
+        const downloadedFile = files.find(file => file.includes(downloadId));
+
+        if (!downloadedFile) {
+          throw new Error(`Download completed but no file found with ID ${downloadId}. Files in directory: ${files.join(', ')}`);
         }
 
-        const filePath = String(result.filePath || '');
-        const fileSize = Number(result.fileSize || 0);
+        const filePath = path.join(downloadsDir, downloadedFile);
+        const fileStats = await fs.stat(filePath);
 
-        // Update progress info with result from worker
+        // Update progress info
         downloadProgress.set(downloadId, {
           id: downloadId,
           progress: 100,
           status: 'completed',
           filepath: filePath,
-          filesize: fileSize,
-          filename: path.basename(filePath),
+          filesize: fileStats.size,
+          filename: downloadedFile,
           contentType,
           timestamp: Date.now(),
         });
@@ -343,31 +353,41 @@ export class YoutubeService implements IYoutubeService {
           id: downloadId,
           title: videoInfo.title,
           downloadUrl: `/api/youtube/download/${downloadId}`,
-          fileName: path.basename(filePath),
+          fileName: downloadedFile,
           contentType,
-          fileSize: fileSize,
+          fileSize: fileStats.size,
         };
+      } catch (directError) {
+        // Hata durumunda
+        logger.error(directError, 'yt-dlp download failed with details:');
+        throw directError;
       } finally {
         // Decrement active downloads
         this.activeDownloads--;
       }
+
     } catch (error) {
       // Update progress with error
+      const errorMessage = error instanceof Error
+        ? `${error.message}${error.stack ? `\nStack: ${error.stack}` : ''}`
+        : 'Unknown error occurred';
+
+      logger.error(error, `Download failed for ${videoUrl} with error: ${errorMessage}`);
+
       downloadProgress.set(downloadId, {
         id: downloadId,
         progress: 0,
         status: 'failed',
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: errorMessage,
         timestamp: Date.now(),
       });
-
-      logger.error(error, `Download failed for ${videoUrl}`);
 
       if (error instanceof AppError) {
         throw error;
       }
 
-      throw new AppError(500, 'Download failed. Please try again later.');
+      // Include more details in the error message
+      throw new AppError(500, `Download failed: ${errorMessage}. Please try again later.`);
     }
   }
 
@@ -540,5 +560,17 @@ export class YoutubeService implements IYoutubeService {
       .replace(/[\\/:*?"<>|]/g, '_') // Replace invalid characters
       .replace(/\s+/g, '_') // Replace spaces with underscores
       .substring(0, 100); // Limit length
+  }
+
+  /**
+   * Get the resolution for a given format ID
+   */
+  private getResolution(selected: string): string {
+    const resolutions = {
+      '137': '1080p',
+      '136': '720p',
+      '18': '360p'
+    };
+    return resolutions[selected as keyof typeof resolutions] || 'Unknown';
   }
 }

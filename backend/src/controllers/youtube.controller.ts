@@ -5,7 +5,8 @@ import { YoutubeService } from '../services/youtube.service';
 import { videoUrlSchema, downloadOptionsSchema } from '../schemas/video.schema';
 import { AppError } from '../middleware/error-handler';
 import { logger } from '../config/logger';
-import { DownloadRequest } from '../domain/video';
+import { DownloadRequest, VideoInfo } from '../domain/video';
+import path from 'path';
 
 // Initialize services
 const youtubeService = new YoutubeService();
@@ -26,6 +27,29 @@ function validateBody<T>(schema: z.ZodSchema, body: unknown): T {
 }
 
 /**
+ * Transform backend VideoInfo to frontend compatible format
+ */
+function transformVideoInfoToResponse(videoInfo: VideoInfo) {
+  // Get the best thumbnail
+  const bestThumbnail = videoInfo.thumbnails?.length ? videoInfo.thumbnails[0].url : '';
+
+  return {
+    id: videoInfo.id,
+    formats: videoInfo.formats,
+    videoDetails: {
+      id: videoInfo.id,
+      title: videoInfo.title,
+      description: videoInfo.description || '',
+      duration: videoInfo.duration || 0,
+      thumbnail: bestThumbnail,
+      uploadDate: videoInfo.upload_date || '',
+      views: videoInfo.view_count || 0,
+      author: videoInfo.uploader || ''
+    }
+  };
+}
+
+/**
  * Controller for YouTube video operations
  */
 export class YoutubeController {
@@ -39,8 +63,15 @@ export class YoutubeController {
       logger.debug(`Getting video info for URL: ${url}`);
 
       const videoInfo = await youtubeService.getVideoInfo(url);
-      res.json(videoInfo);
+      logger.debug(`Video info retrieved successfully`);
+
+      // Transform to frontend-compatible format
+      const responseData = transformVideoInfoToResponse(videoInfo);
+      logger.debug(`Transformed video info for frontend`);
+
+      res.json(responseData);
     } catch (error) {
+      logger.error(`Error in getVideoInfo: ${error}`);
       next(error);
     }
   }
@@ -105,6 +136,20 @@ export class YoutubeController {
       const stat = fs.statSync(filepath);
       const fileSize = stat.size;
 
+      // Set a simplified filename to avoid browser issues
+      const safeFilename = filename.replace(/[^\w.-]/g, '_');
+
+      // Get file extension
+      const fileExt = path.extname(safeFilename);
+      // Create a clean filename (remove internal ID)
+      const cleanFilename = safeFilename.replace(/-[0-9a-f-]+\.(mp4|mp3)$/i, fileExt);
+
+      // Additional CORS headers for file download
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Methods', 'GET');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Content-Disposition');
+      res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+
       // Parse Range header
       const range = req.headers.range;
 
@@ -123,7 +168,12 @@ export class YoutubeController {
         res.header('Accept-Ranges', 'bytes');
         res.header('Content-Length', chunkSize.toString());
         res.header('Content-Type', contentType);
-        res.header('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+
+        // Improved content disposition - using both standard and UTF-8 encoded version for better browser compatibility
+        res.header(
+          'Content-Disposition',
+          `attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`
+        );
 
         // Create read stream with range
         const fileStream = fs.createReadStream(filepath, { start, end });
@@ -136,7 +186,12 @@ export class YoutubeController {
         res.header('Accept-Ranges', 'bytes');
         res.header('Content-Length', fileSize.toString());
         res.header('Content-Type', contentType);
-        res.header('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+
+        // Improved content disposition - using both standard and UTF-8 encoded version for better browser compatibility
+        res.header(
+          'Content-Disposition',
+          `attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`
+        );
 
         // Stream the file
         const fileStream = fs.createReadStream(filepath);
@@ -166,6 +221,29 @@ export class YoutubeController {
 
       const progress = youtubeService.getProgress(downloadId);
       res.json(progress);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Download a video as MP3
+   */
+  public async downloadMP3(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { url } = validateBody<{ url: string }>(videoUrlSchema, req.body);
+      logger.debug(`Starting MP3 download for URL: ${url}`);
+
+      // Create download options with audio extraction
+      const options: DownloadRequest = {
+        videoUrl: url,
+        extractAudio: true,
+        audioFormat: 'mp3',
+        quality: '0'  // Best quality
+      };
+
+      const result = await youtubeService.downloadVideo(options);
+      res.json(result);
     } catch (error) {
       next(error);
     }

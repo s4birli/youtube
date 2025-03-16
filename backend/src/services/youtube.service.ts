@@ -31,7 +31,7 @@ interface DownloadProgress {
 
 // In-memory store for progress tracking
 // In a production app, this should be replaced with Redis or another external store
-const downloadProgress = new Map<string, DownloadProgress>();
+export const downloadProgress = new Map<string, DownloadProgress>();
 
 /**
  * YouTube downloader service

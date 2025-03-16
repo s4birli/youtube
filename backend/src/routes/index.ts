@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import youtubeRoutes from './youtube.routes';
 import cacheRoutes from './cache.routes';
+import metadataRoutes from './metadata.routes';
 
 const router = Router();
 
@@ -16,5 +17,6 @@ router.get('/health', (req, res) => {
 // Register routes
 router.use('/youtube', youtubeRoutes);
 router.use('/cache', cacheRoutes);
+router.use('/metadata', metadataRoutes);
 
 export default router;

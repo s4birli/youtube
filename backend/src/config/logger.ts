@@ -18,23 +18,27 @@ class SimpleLogger implements Logger {
 
   info(message: string, ...meta: unknown[]): void {
     const timestamp = new Date().toISOString();
+    // eslint-disable-next-line no-console
     console.log(`[${timestamp}] INFO: ${message}`, ...meta);
   }
 
   error(error: unknown, message?: string, ...meta: unknown[]): void {
     const timestamp = new Date().toISOString();
     const errorMsg = message ? `${message}: ${this.formatError(error)}` : this.formatError(error);
+    // eslint-disable-next-line no-console
     console.error(`[${timestamp}] ERROR: ${errorMsg}`, ...meta);
   }
 
   warn(message: string, ...meta: unknown[]): void {
     const timestamp = new Date().toISOString();
+    // eslint-disable-next-line no-console
     console.warn(`[${timestamp}] WARN: ${message}`, ...meta);
   }
 
   debug(message: string, ...meta: unknown[]): void {
     if (this.isDevelopment) {
       const timestamp = new Date().toISOString();
+      // eslint-disable-next-line no-console
       console.debug(`[${timestamp}] DEBUG: ${message}`, ...meta);
     }
   }

@@ -99,7 +99,7 @@ export class YoutubeController {
       const { downloadId } = req.params;
       logger.debug(`Streaming download: ${downloadId}`);
 
-      const { filepath, filename, contentType, filesize } =
+      const { filepath, filename, contentType } =
         await youtubeService.getDownloadedFile(downloadId);
 
       const stat = fs.statSync(filepath);
@@ -113,7 +113,7 @@ export class YoutubeController {
         const parts = range.replace(/bytes=/, '').split('-');
         const start = parseInt(parts[0], 10);
         const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-        const chunkSize = (end - start) + 1;
+        const chunkSize = end - start + 1;
 
         logger.debug(`Range request for ${downloadId}: ${start}-${end}/${fileSize}`);
 
@@ -142,7 +142,7 @@ export class YoutubeController {
         const fileStream = fs.createReadStream(filepath);
 
         // Handle errors in stream
-        fileStream.on('error', (error) => {
+        fileStream.on('error', error => {
           logger.error(error, `Error streaming file ${filepath}`);
           if (!res.headersSent) {
             next(new AppError(500, 'Error streaming file'));

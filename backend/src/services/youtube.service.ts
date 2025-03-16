@@ -320,17 +320,20 @@ export class YoutubeService implements IYoutubeService {
         });
 
         if (!result.success) {
-          throw new Error(result.error || 'Download failed in worker thread');
+          throw new Error(result.error ? String(result.error) : 'Download failed in worker thread');
         }
+
+        const filePath = String(result.filePath || '');
+        const fileSize = Number(result.fileSize || 0);
 
         // Update progress info with result from worker
         downloadProgress.set(downloadId, {
           id: downloadId,
           progress: 100,
           status: 'completed',
-          filepath: result.filePath,
-          filesize: result.fileSize,
-          filename: path.basename(result.filePath),
+          filepath: filePath,
+          filesize: fileSize,
+          filename: path.basename(filePath),
           contentType,
           timestamp: Date.now(),
         });
@@ -340,9 +343,9 @@ export class YoutubeService implements IYoutubeService {
           id: downloadId,
           title: videoInfo.title,
           downloadUrl: `/api/youtube/download/${downloadId}`,
-          fileName: path.basename(result.filePath),
+          fileName: path.basename(filePath),
           contentType,
-          fileSize: result.fileSize,
+          fileSize: fileSize,
         };
       } finally {
         // Decrement active downloads

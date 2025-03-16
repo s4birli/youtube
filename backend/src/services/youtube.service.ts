@@ -6,10 +6,8 @@ import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { cache } from '../config/cache';
 import { AppError } from '../middleware/error-handler';
-import { WorkerPool } from './worker-pool.service';
 import {
   VideoInfo,
-  VideoFormat,
   DownloadRequest,
   DownloadResponse,
   VideoFormatResponse,
@@ -33,9 +31,6 @@ interface DownloadProgress {
 // In-memory store for progress tracking
 // In a production app, this should be replaced with Redis or another external store
 export const downloadProgress = new Map<string, DownloadProgress>();
-
-// Create a worker pool instance
-const workerPool = new WorkerPool();
 
 /**
  * YouTube downloader service
@@ -103,7 +98,7 @@ export class YoutubeService implements IYoutubeService {
       const result = await Promise.race([
         ytDlpExec(url, {
           dumpSingleJson: true,
-          noCheckCertificates: true,
+          noCheckCertificate: true,
           noWarnings: true,
           socketTimeout: 10000,
         }),
@@ -260,45 +255,34 @@ export class YoutubeService implements IYoutubeService {
       const downloadsDir = path.join(this.downloadDir, 'downloads');
 
       // Create options object for yt-dlp
+      // dlOptions oluşturma kısmı (düzeltilmiş)
       const dlOptions: Record<string, string | boolean | number | string[]> = {
         output: path.join(downloadsDir, `${outputFilename}.%(ext)s`),
-        noCheckCertificates: true,
+        noCheckCertificate: true,
         noWarnings: true,
         addHeader: ['referer:youtube.com', 'user-agent:Mozilla/5.0'],
         verbose: true,
       };
 
-      // Handle format selection with yt-dlp
+      // Format seçimi için:
       if (formatId && !extractAudio) {
-        // For video downloads, use format selectors for specific resolutions
-        // but make sure to include audio
-        if (formatId === '137') {
-          // 1080p
-          dlOptions.format = 'bv*[height=1080]+ba/b[height<=1080] / best';
-        } else if (formatId === '136') {
-          // 720p
-          dlOptions.format = 'bv*[height=720]+ba/b[height<=720] / best';
-        } else if (formatId === '18') {
-          // 360p
-          dlOptions.format = 'bv*[height=360]+ba/b[height<=360] / best';
-        } else {
-          // Default to requested format + audio
-          dlOptions.format = `${formatId}+ba/b`;
-        }
+        // Video indirme, belirli çözünürlükler için format belirteçleri kullan
+        dlOptions.format = `${formatId}+bestaudio/best[ext=mp4]`;
+        dlOptions.mergeOutputFormat = 'mp4';
 
-        // Ensure we get MP4 output
-        dlOptions.mergeFormat = 'mp4';
         outputFilename = `${outputFilename}.mp4`;
       } else if (extractAudio) {
-        // For audio downloads
+        // Ses indirme için
         dlOptions.extractAudio = true;
         dlOptions.audioFormat = audioFormat || 'mp3';
         dlOptions.audioQuality = quality ? parseInt(quality, 10) : 0;
         contentType = `audio/${audioFormat || 'mp3'}`;
         outputFilename = `${outputFilename}.${audioFormat || 'mp3'}`;
       } else {
-        // Default: best video with audio
-        dlOptions.format = 'best';
+        // Varsayılan: en iyi video ve ses
+        dlOptions.format = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best';
+        dlOptions.mergeOutputFormat = 'mp4';
+        dlOptions.postprocessorArgs = ['FFmpeg:-vcodec h264 -acodec aac'];
         outputFilename = `${outputFilename}.mp4`;
       }
 
@@ -330,7 +314,9 @@ export class YoutubeService implements IYoutubeService {
         const downloadedFile = files.find(file => file.includes(downloadId));
 
         if (!downloadedFile) {
-          throw new Error(`Download completed but no file found with ID ${downloadId}. Files in directory: ${files.join(', ')}`);
+          throw new Error(
+            `Download completed but no file found with ID ${downloadId}. Files in directory: ${files.join(', ')}`
+          );
         }
 
         const filePath = path.join(downloadsDir, downloadedFile);
@@ -365,12 +351,12 @@ export class YoutubeService implements IYoutubeService {
         // Decrement active downloads
         this.activeDownloads--;
       }
-
     } catch (error) {
       // Update progress with error
-      const errorMessage = error instanceof Error
-        ? `${error.message}${error.stack ? `\nStack: ${error.stack}` : ''}`
-        : 'Unknown error occurred';
+      const errorMessage =
+        error instanceof Error
+          ? `${error.message}${error.stack ? `\nStack: ${error.stack}` : ''}`
+          : 'Unknown error occurred';
 
       logger.error(error, `Download failed for ${videoUrl} with error: ${errorMessage}`);
 
@@ -569,7 +555,7 @@ export class YoutubeService implements IYoutubeService {
     const resolutions = {
       '137': '1080p',
       '136': '720p',
-      '18': '360p'
+      '18': '360p',
     };
     return resolutions[selected as keyof typeof resolutions] || 'Unknown';
   }

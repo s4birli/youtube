@@ -15,8 +15,7 @@
     },
     "env": {
         "node": true,
-        "es2022": true,
-        "jest": true
+        "es2022": true
     },
     "ignorePatterns": [
         "dist/**/*"

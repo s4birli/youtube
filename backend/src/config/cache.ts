@@ -44,11 +44,6 @@ export class CacheService {
    * @param ttl Optional custom TTL for this specific item (in seconds)
    */
   set<T>(key: string, value: T, ttl?: number): void {
-    // Check if we need to enforce size limits
-    if (this.cache.size >= this.config.maxSize) {
-      this.enforceMaxSize();
-    }
-
     // Calculate expiry time
     const expiryMs = ttl ? ttl * 1000 : this.config.ttl;
     const expiry = Date.now() + expiryMs;
@@ -56,6 +51,22 @@ export class CacheService {
     // Store in cache
     this.cache.set(key, { value, expiry } as CacheItem<unknown>);
     logger.debug(`Cache: Set key "${key}" with expiry in ${expiryMs}ms`);
+
+    // Check if we need to enforce size limits after adding the new item
+    if (this.cache.size > this.config.maxSize) {
+      // If we're over the limit, remove oldest items
+      const itemsToRemove = this.cache.size - this.config.maxSize;
+
+      // Convert to array to sort by expiry
+      const items = Array.from(this.cache.entries()).sort((a, b) => a[1].expiry - b[1].expiry);
+
+      // Remove the items with earliest expiry
+      for (let i = 0; i < Math.min(itemsToRemove, items.length); i++) {
+        this.cache.delete(items[i][0]);
+      }
+
+      logger.debug(`Cache: Removed ${itemsToRemove} oldest items to enforce max size`);
+    }
   }
 
   /**
@@ -108,6 +119,17 @@ export class CacheService {
   }
 
   /**
+   * Get cache statistics
+   * @returns Object containing statistics about the cache
+   */
+  stats(): { size: number; keys: string[] } {
+    return {
+      size: this.cache.size,
+      keys: Array.from(this.cache.keys()),
+    };
+  }
+
+  /**
    * Remove expired items from the cache
    */
   cleanup(): void {
@@ -124,24 +146,6 @@ export class CacheService {
     if (removedCount > 0) {
       logger.debug(`Cache: Removed ${removedCount} expired items`);
     }
-  }
-
-  /**
-   * Reduce cache size when it exceeds maximum
-   */
-  private enforceMaxSize(): void {
-    // If we're at the limit, remove oldest items (30% of max)
-    const itemsToRemove = Math.ceil(this.config.maxSize * 0.3);
-
-    // Convert to array to sort by expiry
-    const items = Array.from(this.cache.entries()).sort((a, b) => a[1].expiry - b[1].expiry);
-
-    // Remove the items with earliest expiry
-    for (let i = 0; i < Math.min(itemsToRemove, items.length); i++) {
-      this.cache.delete(items[i][0]);
-    }
-
-    logger.debug(`Cache: Removed ${itemsToRemove} oldest items to enforce max size`);
   }
 
   /**

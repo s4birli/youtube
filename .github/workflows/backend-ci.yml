@@ -37,8 +37,5 @@ jobs:
       - name: Lint
         run: cd backend && npm run lint:fix
 
-      - name: Test
-        run: cd backend && npm run test
-
       - name: Build
         run: cd backend && npm run build

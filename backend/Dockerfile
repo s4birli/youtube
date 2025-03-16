@@ -14,7 +14,7 @@ RUN npm run build
 # Create production image
 FROM node:20-slim
 
-# Ensure required system packages for youtube-dl
+# Ensure required system packages for youtube-dl-exec
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \

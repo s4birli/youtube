@@ -28,6 +28,10 @@ const envSchema = z.object({
 
   // Max concurrent downloads
   MAX_CONCURRENT_DOWNLOADS: z.coerce.number().default(3),
+
+  // Cache settings
+  CACHE_TTL: z.coerce.number().default(1800), // 30 minutes in seconds
+  CACHE_MAX_ITEMS: z.coerce.number().default(100),
 });
 
 // Parse environment variables

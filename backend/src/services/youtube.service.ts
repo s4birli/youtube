@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import youtubeDl from 'youtube-dl-exec';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
+import { cache } from '../config/cache';
 import { AppError } from '../middleware/error-handler';
 import {
   VideoInfo,
@@ -66,6 +67,16 @@ export class YoutubeService implements IYoutubeService {
    * Get video information
    */
   public async getVideoInfo(url: string): Promise<VideoInfo> {
+    // Generate a cache key based on the URL
+    const cacheKey = `video_info:${url}`;
+
+    // Check if we have a cached version
+    const cachedInfo = cache.get<VideoInfo>(cacheKey);
+    if (cachedInfo) {
+      logger.debug(`Using cached video info for URL: ${url}`);
+      return cachedInfo;
+    }
+
     let timeoutId: NodeJS.Timeout | null = null;
 
     try {
@@ -103,11 +114,16 @@ export class YoutubeService implements IYoutubeService {
 
       logger.debug(`Video info result type: ${typeof result}`);
 
-      // If we got a valid result, return it
+      // If we got a valid result, cache it and return it
       if (result && typeof result === 'object' && Object.keys(result).length > 0) {
         const typedResult = result as Record<string, unknown>;
         logger.debug(`Successfully retrieved video info for: ${String(typedResult.title)}`);
-        return result as unknown as VideoInfo;
+
+        // Cache the result - videos don't change often, so we can cache for 1 hour
+        const videoInfo = result as unknown as VideoInfo;
+        cache.set(cacheKey, videoInfo, 60 * 60); // Cache for 1 hour
+
+        return videoInfo;
       }
 
       // If we didn't get a valid result, log the issue and throw an error
@@ -139,21 +155,48 @@ export class YoutubeService implements IYoutubeService {
    * Get simplified video info with formats
    */
   public async getVideoFormats(url: string): Promise<VideoFormatResponse> {
+    // Generate a cache key based on the URL
+    const cacheKey = `video_formats:${url}`;
+
+    // Check if we have a cached version
+    const cachedFormats = cache.get<VideoFormatResponse>(cacheKey);
+    if (cachedFormats) {
+      logger.debug(`Using cached video formats for URL: ${url}`);
+      return cachedFormats;
+    }
+
+    // Get full video info (which is itself cached)
     const videoInfo = await this.getVideoInfo(url);
 
-    return {
+    // Create the formats response
+    const formats = {
       id: videoInfo.id,
       title: videoInfo.title,
       webpage_url: videoInfo.webpage_url,
       formats: videoInfo.formats,
       thumbnails: videoInfo.thumbnails,
     };
+
+    // Cache the formats (shorter time since these can change more often)
+    cache.set(cacheKey, formats, 30 * 60); // Cache for 30 minutes
+
+    return formats;
   }
 
   /**
    * Get download URL for a specific format
    */
   public async getDownloadUrl(videoId: string, formatId: string): Promise<string> {
+    // Generate a cache key
+    const cacheKey = `download_url:${videoId}:${formatId}`;
+
+    // Check if we have a cached URL
+    const cachedUrl = cache.get<string>(cacheKey);
+    if (cachedUrl) {
+      logger.debug(`Using cached download URL for video ${videoId}, format ${formatId}`);
+      return cachedUrl;
+    }
+
     try {
       const url = `https://www.youtube.com/watch?v=${videoId}`;
       const videoInfo = await this.getVideoInfo(url);
@@ -163,6 +206,9 @@ export class YoutubeService implements IYoutubeService {
       if (!format || !format.url) {
         throw new AppError(404, `Format ${formatId} not found for video ${videoId}`);
       }
+
+      // Cache the URL (short time as these expire)
+      cache.set(cacheKey, format.url, 5 * 60); // Cache for 5 minutes
 
       return format.url;
     } catch (error) {

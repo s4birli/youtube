@@ -215,9 +215,12 @@ export class YoutubeService implements IYoutubeService {
       let outputFilename = `${sanitizedTitle}-${downloadId}`;
       let contentType = 'video/mp4';
 
+      // Path to downloads subdirectory
+      const downloadsDir = path.join(this.downloadDir, 'downloads');
+
       // Create options object
       const dlOptions: Record<string, string | boolean | number | string[]> = {
-        output: path.join(this.downloadDir, `${outputFilename}.%(ext)s`),
+        output: path.join(downloadsDir, `${outputFilename}.%(ext)s`),
         noCheckCertificates: true,
         noWarnings: true,
         addHeader: ['referer:youtube.com', 'user-agent:Mozilla/5.0'],
@@ -257,14 +260,14 @@ export class YoutubeService implements IYoutubeService {
         await youtubeDl(videoUrl, dlOptions);
 
         // Find the downloaded file
-        const files = await fs.readdir(this.downloadDir);
+        const files = await fs.readdir(downloadsDir);
         const downloadedFile = files.find(file => file.includes(downloadId));
 
         if (!downloadedFile) {
           throw new Error('Downloaded file not found');
         }
 
-        const filePath = path.join(this.downloadDir, downloadedFile);
+        const filePath = path.join(downloadsDir, downloadedFile);
         const fileStats = await fs.stat(filePath);
 
         // Update progress info
@@ -346,6 +349,28 @@ export class YoutubeService implements IYoutubeService {
         filesize: progress.filesize || 0,
       };
     } catch (error) {
+      // If file not found in the progress map, try to find it in the downloads directory
+      try {
+        const downloadsDir = path.join(this.downloadDir, 'downloads');
+        const files = await fs.readdir(downloadsDir);
+        const downloadedFile = files.find(file => file.includes(downloadId));
+
+        if (downloadedFile) {
+          const filePath = path.join(downloadsDir, downloadedFile);
+          const fileStats = await fs.stat(filePath);
+
+          return {
+            filepath: filePath,
+            filename: downloadedFile,
+            contentType: progress.contentType || 'application/octet-stream',
+            filesize: fileStats.size,
+          };
+        }
+      } catch (searchError) {
+        // If search also fails, log it but don't change the primary error
+        logger.error(searchError, `Failed to find alternative file for download ${downloadId}`);
+      }
+
       logger.error(error, `File not found for download ${downloadId}`);
       throw new AppError(404, 'Download file not found');
     }
@@ -375,7 +400,13 @@ export class YoutubeService implements IYoutubeService {
         return;
       }
 
+      // Create main data directory
       await fs.mkdir(this.downloadDir, { recursive: true });
+
+      // Create downloads subdirectory
+      const downloadsDir = path.join(this.downloadDir, 'downloads');
+      await fs.mkdir(downloadsDir, { recursive: true });
+
       logger.info(`Download directory ensured at: ${this.downloadDir}`);
     } catch (error) {
       logger.error(error, 'Failed to create download directory');
@@ -408,14 +439,26 @@ export class YoutubeService implements IYoutubeService {
    */
   private async cleanupOldFiles(): Promise<void> {
     try {
-      const files = await fs.readdir(this.downloadDir);
+      const downloadsDir = path.join(this.downloadDir, 'downloads');
+
+      // Check if directory exists before trying to read it
+      try {
+        await fs.access(downloadsDir);
+      } catch (err) {
+        // Create the directory if it doesn't exist
+        await fs.mkdir(downloadsDir, { recursive: true });
+        logger.info(`Created missing downloads directory at: ${downloadsDir}`);
+        return; // No files to clean if directory was just created
+      }
+
+      const files = await fs.readdir(downloadsDir);
       const now = Date.now();
       const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
       let cleanedCount = 0;
 
       for (const file of files) {
-        const filePath = path.join(this.downloadDir, file);
+        const filePath = path.join(downloadsDir, file);
         const stats = await fs.stat(filePath);
 
         // Remove files older than 1 day

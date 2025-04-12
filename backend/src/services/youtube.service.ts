@@ -361,11 +361,18 @@ export class YoutubeService implements IYoutubeService {
 
           logger.debug(`Successfully verified file readability: ${filePath}`);
         } catch (readError) {
-          logger.error(`Error verifying file readability: ${filePath}`, readError instanceof Error ? readError.message : String(readError));
-          throw new Error(`File verification failed: ${readError instanceof Error ? readError.message : String(readError)}`);
+          logger.error(
+            `Error verifying file readability: ${filePath}`,
+            readError instanceof Error ? readError.message : String(readError)
+          );
+          throw new Error(
+            `File verification failed: ${readError instanceof Error ? readError.message : String(readError)}`
+          );
         }
 
-        logger.info(`Download completed successfully. File: ${filePath}, Size: ${fileStats.size} bytes`);
+        logger.info(
+          `Download completed successfully. File: ${filePath}, Size: ${fileStats.size} bytes`
+        );
 
         // Update progress info to completed
         downloadProgress.set(downloadId, {

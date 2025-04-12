@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { VideoResponse, VideoFormat } from '../../types/video.types';
 import { YoutubeService } from '../../services/api';
+import { createPortal } from 'react-dom';
 
 interface VideoInfoProps {
     videoData: VideoResponse;
@@ -319,131 +320,128 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
         }
     };
 
-    return (
-        <div className="w-full max-w-4xl mx-auto bg-gray-900 rounded-lg shadow-lg overflow-hidden">
-            <div className="flex p-4 border-radius: 0.5rem;">
-                <div className="w-2/3">
-                    <img
-                        src={highQualityThumbnail}
-                        alt={title}
-                        className="w-full h-full object-cover border-top-left-radius: 0.5rem; border-bottom-left-radius: 0.5rem;"
-                    />
+    // Create portal for loading overlay
+    const LoadingOverlay = () => {
+        if (!isDownloading) return null;
+
+        return createPortal(
+            <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50">
+                <div className="flex flex-col items-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600 mb-4"></div>
+                    <p className="text-white text-lg">Preparing download...</p>
+                    {downloadProgress > 0 && (
+                        <p className="text-white text-sm mt-2">{downloadProgress}%</p>
+                    )}
                 </div>
-                <div className="p-4 w-1/3 bg-gray-800 text-white border-top-right-radius: 0.5rem; border-bottom-right-radius: 0.5rem;">
-                    <h2 className="text-lg font-semibold mb-1 line-clamp-2 h-14 overflow-hidden">
-                        {title}
-                    </h2>
-                    <p className="text-sm text-gray-300 mb-3">
-                        Duration: {formatDuration(duration)}
-                    </p>
+            </div>,
+            document.body
+        );
+    };
 
-                    {/* Format type selector buttons */}
-                    <div className="flex mb-3 space-x-2">
-                        <button
-                            className={`px-4 py-2 rounded-md ${mediaType === 'video'
-                                ? 'bg-red-600 text-white'
-                                : 'bg-gray-600 text-gray-300'
-                                }`}
-                            onClick={() => setMediaType('video')}
-                        >
-                            📹 Video
-                        </button>
-                        <button
-                            className={`px-4 py-2 rounded-md ${mediaType === 'audio'
-                                ? 'bg-red-600 text-white'
-                                : 'bg-gray-600 text-gray-300'
-                                }`}
-                            onClick={() => setMediaType('audio')}
-                        >
-                            🎵 Audio
-                        </button>
+    return (
+        <>
+            <LoadingOverlay />
+            <div className="w-full max-w-4xl mx-auto bg-gray-900 rounded-lg shadow-lg overflow-hidden">
+                <div className="flex p-4 border-radius: 0.5rem;">
+                    <div className="w-2/3">
+                        <img
+                            src={highQualityThumbnail}
+                            alt={title}
+                            className="w-full h-full object-cover border-top-left-radius: 0.5rem; border-bottom-left-radius: 0.5rem;"
+                        />
                     </div>
+                    <div className="p-4 w-1/3 bg-gray-800 text-white border-top-right-radius: 0.5rem; border-bottom-right-radius: 0.5rem;">
+                        <h2 className="text-lg font-semibold mb-1 line-clamp-2 h-14 overflow-hidden">
+                            {title}
+                        </h2>
+                        <p className="text-sm text-gray-300 mb-3">
+                            Duration: {formatDuration(duration)}
+                        </p>
 
-                    {/* Video section - horizontal resolution buttons and download button */}
-                    {mediaType === 'video' && (
-                        <>
-                            {/* Resolution selector buttons */}
-                            {videoFormats.length > 0 ? (
-                                <div className="flex space-x-2 mb-4">
-                                    {videoFormats.map(format => (
-                                        <button
-                                            key={format.format_id}
-                                            onClick={() => handleResolutionSelect(getResolutionDisplayText(format))}
-                                            className={`px-4 py-2 rounded-md ${selectedResolution === getResolutionDisplayText(format)
-                                                ? 'bg-red-600 text-white'
-                                                : 'bg-gray-700 text-gray-300'
-                                                }`}
-                                        >
-                                            {getResolutionDisplayText(format)}
-                                        </button>
-                                    ))}
-                                </div>
-                            ) : (
-                                <p className="text-gray-400 text-sm">No video formats available</p>
-                            )}
+                        {/* Format type selector buttons */}
+                        <div className="flex mb-3 space-x-2">
+                            <button
+                                className={`px-4 py-2 rounded-md ${mediaType === 'video'
+                                    ? 'bg-red-600 text-white'
+                                    : 'bg-gray-600 text-gray-300'
+                                    }`}
+                                onClick={() => setMediaType('video')}
+                            >
+                                📹 Video
+                            </button>
+                            <button
+                                className={`px-4 py-2 rounded-md ${mediaType === 'audio'
+                                    ? 'bg-red-600 text-white'
+                                    : 'bg-gray-600 text-gray-300'
+                                    }`}
+                                onClick={() => setMediaType('audio')}
+                            >
+                                🎵 Audio
+                            </button>
+                        </div>
 
-                            {/* Download button */}
-                            {selectedFormat && (
+                        {/* Video section - horizontal resolution buttons and download button */}
+                        {mediaType === 'video' && (
+                            <>
+                                {/* Resolution selector buttons */}
+                                {videoFormats.length > 0 ? (
+                                    <div className="flex space-x-2 mb-4">
+                                        {videoFormats.map(format => (
+                                            <button
+                                                key={format.format_id}
+                                                onClick={() => handleResolutionSelect(getResolutionDisplayText(format))}
+                                                className={`px-4 py-2 rounded-md ${selectedResolution === getResolutionDisplayText(format)
+                                                    ? 'bg-red-600 text-white'
+                                                    : 'bg-gray-700 text-gray-300'
+                                                    }`}
+                                            >
+                                                {getResolutionDisplayText(format)}
+                                            </button>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-gray-400 text-sm">No video formats available</p>
+                                )}
+
+                                {/* Download button */}
+                                {selectedFormat && (
+                                    <button
+                                        onClick={handleDownload}
+                                        disabled={isDownloading}
+                                        className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-md flex items-center justify-center mt-2"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                                        </svg>
+                                        Download {selectedResolution}
+                                    </button>
+                                )}
+                            </>
+                        )}
+
+                        {/* Audio section - direct MP3 download button only */}
+                        {mediaType === 'audio' && (
+                            <div className="mt-2 text-center">
+                                <p className="text-sm text-gray-400 mb-2">
+                                    Download this video as MP3 audio
+                                </p>
+
                                 <button
-                                    onClick={handleDownload}
+                                    onClick={handleMP3Download}
                                     disabled={isDownloading}
-                                    className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-md flex items-center justify-center mt-2"
+                                    className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-md flex items-center justify-center"
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                                         <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                                     </svg>
-                                    Download {selectedResolution}
+                                    Download MP3
                                 </button>
-                            )}
-                        </>
-                    )}
-
-                    {/* Audio section - direct MP3 download button only */}
-                    {mediaType === 'audio' && (
-                        <div className="mt-2 text-center">
-                            <p className="text-sm text-gray-400 mb-2">
-                                Download this video as MP3 audio
-                            </p>
-
-                            <button
-                                onClick={handleMP3Download}
-                                disabled={isDownloading}
-                                className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-md flex items-center justify-center"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                                </svg>
-                                Download MP3
-                            </button>
-                        </div>
-                    )}
-
-                    {/* Download progress bar */}
-                    {isDownloading && (
-                        <div className="mt-4">
-                            <div className="w-full bg-gray-700 rounded-full h-2">
-                                <div
-                                    className="bg-red-600 h-2 rounded-full transition-all duration-300"
-                                    style={{ width: `${downloadProgress}%` }}
-                                ></div>
                             </div>
-                            <p className="text-xs text-center mt-1 text-gray-400">
-                                {downloadProgress === 100 ? 'Download ready!' : 'Preparing download...'}
-                            </p>
-                        </div>
-                    )}
-
-                    {/* Download status message (shows after processing is complete) */}
-                    {showDownloadButton && downloadUrl && (
-                        <div className="mt-4">
-                            <p className="text-sm text-center text-green-400">
-                                Download started! Check your downloads folder.
-                            </p>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
             </div>
-        </div>
+        </>
     );
 };
 

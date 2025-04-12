@@ -44,8 +44,8 @@ function transformVideoInfoToResponse(videoInfo: VideoInfo) {
       thumbnail: bestThumbnail,
       uploadDate: videoInfo.upload_date || '',
       views: videoInfo.view_count || 0,
-      author: videoInfo.uploader || ''
-    }
+      author: videoInfo.uploader || '',
+    },
   };
 }
 
@@ -150,7 +150,10 @@ export class YoutubeController {
         logger.info(`Found file: ${filepath}, Size: ${stat.size} bytes`);
       } catch (error) {
         if (error instanceof AppError) throw error;
-        logger.error(`File not accessible: ${filepath}`, error instanceof Error ? error.message : String(error));
+        logger.error(
+          `File not accessible: ${filepath}`,
+          error instanceof Error ? error.message : String(error)
+        );
         throw new AppError(404, 'Download file not accessible');
       }
 
@@ -179,14 +182,16 @@ export class YoutubeController {
       // Try using download method first
       try {
         logger.debug(`Sending file using res.download: ${filepath}`);
-        return res.download(filepath, safeFilename, (err) => {
+        return res.download(filepath, safeFilename, err => {
           if (err) {
             logger.error(`Error sending file via res.download: ${err.message}`);
             // Don't call next() here as we'll try the fallback method
           }
         });
       } catch (downloadError) {
-        logger.error(`Exception in res.download: ${downloadError instanceof Error ? downloadError.message : String(downloadError)}`);
+        logger.error(
+          `Exception in res.download: ${downloadError instanceof Error ? downloadError.message : String(downloadError)}`
+        );
         // Continue to fallback methods
       }
 
@@ -196,11 +201,13 @@ export class YoutubeController {
         return res.sendFile(filepath, {
           headers: {
             'Content-Disposition': `attachment; filename="${safeFilename}"`,
-            'Content-Type': contentType
-          }
+            'Content-Type': contentType,
+          },
         });
       } catch (sendFileError) {
-        logger.error(`Exception in res.sendFile: ${sendFileError instanceof Error ? sendFileError.message : String(sendFileError)}`);
+        logger.error(
+          `Exception in res.sendFile: ${sendFileError instanceof Error ? sendFileError.message : String(sendFileError)}`
+        );
         // Continue to final fallback
       }
 
@@ -213,7 +220,7 @@ export class YoutubeController {
       res.header('Content-Length', stat.size.toString());
 
       // Handle stream errors
-      fileStream.on('error', (error) => {
+      fileStream.on('error', error => {
         logger.error(`Error in read stream: ${error.message}`);
         if (!res.headersSent) {
           next(new AppError(500, 'Error streaming file'));
@@ -228,7 +235,9 @@ export class YoutubeController {
       // Pipe the file to the response
       fileStream.pipe(res);
     } catch (error) {
-      logger.error(`Error in streamDownload: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Error in streamDownload: ${error instanceof Error ? error.message : String(error)}`
+      );
       next(error);
     }
   }
@@ -261,7 +270,7 @@ export class YoutubeController {
         videoUrl: url,
         extractAudio: true,
         audioFormat: 'mp3',
-        quality: '0'  // Best quality
+        quality: '0', // Best quality
       };
 
       const result = await youtubeService.downloadVideo(options);

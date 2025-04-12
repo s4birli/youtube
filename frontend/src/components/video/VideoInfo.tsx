@@ -166,7 +166,7 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
 
     // Direct download function
     const initiateDirectDownload = (downloadUrl: string, filename: string) => {
-        const fullUrl = "http://localhost:3000" + downloadUrl;
+        const fullUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}${downloadUrl}`;
 
         try {
             const newWindow = window.open(fullUrl, '_blank');
@@ -342,26 +342,26 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
         <>
             <LoadingOverlay />
             <div className="w-full max-w-4xl mx-auto bg-gray-900 rounded-lg shadow-lg overflow-hidden">
-                <div className="flex p-4 border-radius: 0.5rem;">
-                    <div className="w-2/3">
+                <div className="flex flex-col md:flex-row p-4">
+                    <div className="w-full md:w-2/3">
                         <img
                             src={highQualityThumbnail}
                             alt={title}
-                            className="w-full h-full object-cover border-top-left-radius: 0.5rem; border-bottom-left-radius: 0.5rem;"
+                            className="w-full h-auto object-cover rounded-lg md:rounded-none"
                         />
                     </div>
-                    <div className="p-4 w-1/3 bg-gray-800 text-white border-top-right-radius: 0.5rem; border-bottom-right-radius: 0.5rem;">
-                        <h2 className="text-lg font-semibold mb-1 line-clamp-2 h-14 overflow-hidden">
+                    <div className="p-4 w-full md:w-1/3 bg-gray-800 text-white rounded-lg mt-4 md:mt-0 md:rounded-none">
+                        <h2 className="text-lg font-semibold mb-2 line-clamp-2 overflow-hidden">
                             {title}
                         </h2>
-                        <p className="text-sm text-gray-300 mb-3">
+                        <p className="text-sm text-gray-300 mb-4">
                             Duration: {formatDuration(duration)}
                         </p>
 
                         {/* Format type selector buttons */}
-                        <div className="flex mb-3 space-x-2">
+                        <div className="flex mb-4 space-x-2">
                             <button
-                                className={`px-4 py-2 rounded-md ${mediaType === 'video'
+                                className={`flex-1 px-4 py-3 rounded-md ${mediaType === 'video'
                                     ? 'bg-red-600 text-white'
                                     : 'bg-gray-600 text-gray-300'
                                     }`}
@@ -370,7 +370,7 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
                                 📹 Video
                             </button>
                             <button
-                                className={`px-4 py-2 rounded-md ${mediaType === 'audio'
+                                className={`flex-1 px-4 py-3 rounded-md ${mediaType === 'audio'
                                     ? 'bg-red-600 text-white'
                                     : 'bg-gray-600 text-gray-300'
                                     }`}
@@ -385,7 +385,7 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
                             <>
                                 {/* Resolution selector buttons */}
                                 {videoFormats.length > 0 ? (
-                                    <div className="flex space-x-2 mb-4">
+                                    <div className="flex flex-wrap gap-2 mb-4">
                                         {videoFormats.map(format => (
                                             <button
                                                 key={format.format_id}
@@ -408,7 +408,7 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
                                     <button
                                         onClick={handleDownload}
                                         disabled={isDownloading}
-                                        className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-md flex items-center justify-center mt-2"
+                                        className="w-full py-4 bg-red-600 hover:bg-red-700 text-white rounded-md flex items-center justify-center mt-3"
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                                             <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -421,15 +421,15 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
 
                         {/* Audio section - direct MP3 download button only */}
                         {mediaType === 'audio' && (
-                            <div className="mt-2 text-center">
-                                <p className="text-sm text-gray-400 mb-2">
+                            <div className="mt-2">
+                                <p className="text-sm text-gray-400 mb-3">
                                     Download this video as MP3 audio
                                 </p>
 
                                 <button
                                     onClick={handleMP3Download}
                                     disabled={isDownloading}
-                                    className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-md flex items-center justify-center"
+                                    className="w-full py-4 bg-red-600 hover:bg-red-700 text-white rounded-md flex items-center justify-center"
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                                         <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />

@@ -82,9 +82,13 @@ export class YoutubeService implements IYoutubeService {
       logger.debug(`Getting video info for URL: ${url}`);
 
       // Check for invalid URL format
-      if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
+      if (
+        !url.includes('youtube.com/watch?v=') &&
+        !url.includes('youtube.com/shorts/') &&
+        !url.includes('youtu.be/')
+      ) {
         logger.warn(`Invalid URL format: ${url}`);
-        throw new AppError(400, 'Invalid URL. Please provide a valid YouTube URL.');
+        throw new AppError(400, 'Invalid URL. Please provide a valid YouTube URL (regular video or shorts).');
       }
 
       // Create a timeout promise

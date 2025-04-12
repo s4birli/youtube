@@ -271,8 +271,11 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
             setShowDownloadButton(false);
             setDownloadUrl(null);
 
+            // Create the proper YouTube URL based on the video ID
+            const youtubeUrl = `https://www.youtube.com/watch?v=${videoDetails.id}`;
+
             const response = await YoutubeService.downloadVideo({
-                videoUrl: `https://www.youtube.com/watch?v=${videoDetails.id}`,
+                videoUrl: youtubeUrl,
                 formatId: selectedFormat.format_id,
                 quality: '0'
             });
@@ -301,7 +304,10 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
             setShowDownloadButton(false);
             setDownloadUrl(null);
 
-            const response = await YoutubeService.downloadMP3(`https://www.youtube.com/watch?v=${videoDetails.id}`);
+            // Create the proper YouTube URL based on the video ID
+            const youtubeUrl = `https://www.youtube.com/watch?v=${videoDetails.id}`;
+
+            const response = await YoutubeService.downloadMP3(youtubeUrl);
 
             // Use the download endpoint directly
             const downloadUrl = `${import.meta.env.VITE_API_BASE_URL || ''}/api/youtube/download/${response.id}`;

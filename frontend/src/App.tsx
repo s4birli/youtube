@@ -7,7 +7,6 @@ import { ThemeProvider } from './contexts/ThemeContext';
 // Lazy-loaded components
 const HomePage = lazy(() => import('./pages/HomePage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
-const HistoryPage = lazy(() => import('./pages/HistoryPage'));
 const ErrorPage = lazy(() => import('./pages/ErrorPage'));
 
 // Loading fallback component
@@ -37,7 +36,6 @@ function App() {
             <Suspense fallback={<LoadingFallback />}>
               <Routes>
                 <Route path="/" element={<HomePage />} />
-                <Route path="/history" element={<HistoryPage />} />
                 <Route path="/about" element={<AboutPage />} />
                 <Route path="*" element={<ErrorPage />} />
               </Routes>

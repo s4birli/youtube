@@ -41,14 +41,6 @@ const ErrorPage = () => {
                             </li>
                             <li>
                                 <Link
-                                    to="/history"
-                                    className="text-youtube-red hover:underline"
-                                >
-                                    • View Download History
-                                </Link>
-                            </li>
-                            <li>
-                                <Link
                                     to="/about"
                                     className="text-youtube-red hover:underline"
                                 >

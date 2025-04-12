@@ -45,7 +45,6 @@ const Header = () => {
                         <nav>
                             <ul className="flex space-x-6">
                                 <li><Link to="/" className="hover:text-youtube-red transition-colors">Home</Link></li>
-                                <li><Link to="/history" className="hover:text-youtube-red transition-colors">History</Link></li>
                                 <li><Link to="/about" className="hover:text-youtube-red transition-colors">About</Link></li>
                             </ul>
                         </nav>
@@ -64,15 +63,6 @@ const Header = () => {
                                     onClick={() => setMenuOpen(false)}
                                 >
                                     Home
-                                </Link>
-                            </li>
-                            <li>
-                                <Link
-                                    to="/history"
-                                    className="block hover:text-youtube-red transition-colors"
-                                    onClick={() => setMenuOpen(false)}
-                                >
-                                    History
                                 </Link>
                             </li>
                             <li>

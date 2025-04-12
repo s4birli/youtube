@@ -86,7 +86,6 @@ const AboutPage = () => {
                         <li>Download videos in multiple formats (MP4, WebM, MP3, etc.)</li>
                         <li>Choose from various quality options (4K, 1080p, 720p, etc.)</li>
                         <li>Extract audio from videos</li>
-                        <li>View and manage download history</li>
                         <li>Dark mode support</li>
                         <li>Responsive design for all devices</li>
                         <li>No registration required</li>

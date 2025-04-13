@@ -1,4 +1,4 @@
-import { VideoResponse, VideoFormat } from './types/video.types';
+import { VideoResponse, VideoFormat, VideoDetails } from './types/video.types';
 
 /**
  * Frontend YouTube Service - handles YouTube operations directly in the browser
@@ -102,20 +102,28 @@ export const YoutubeFrontendService = {
             // Get available formats
             const formats = await this.getFormats(videoId);
 
-            // Create a response similar to what the backend would provide
+            // Create video details object with proper type
+            const videoDetails: VideoDetails = {
+                id: videoId,
+                title: basicInfo.title,
+                description: 'Video description not available in frontend mode',
+                duration: 0,
+                thumbnail: basicInfo.thumbnail_url,
+                uploadDate: new Date().toISOString().split('T')[0],
+                views: 0,
+                author: basicInfo.author_name,
+                // Optional fields
+                channelId: '',
+                viewCount: '0'
+            };
+
+            // Create a response that matches the VideoResponse type
             const response: VideoResponse = {
                 id: videoId,
                 formats: formats,
-                videoDetails: {
-                    id: videoId,
-                    title: basicInfo.title,
-                    description: 'Video description not available in frontend mode',
-                    duration: 0,
-                    thumbnail: basicInfo.thumbnail_url,
-                    uploadDate: new Date().toISOString().split('T')[0],
-                    views: 0,
-                    author: basicInfo.author_name
-                }
+                videoDetails: videoDetails,
+                // Add additional properties
+                _frontend_processed: true
             };
 
             return response;
@@ -129,7 +137,7 @@ export const YoutubeFrontendService = {
      * Initiates a download via external service
      * This is a placeholder that redirects to a YouTube download service
      */
-    async downloadVideo(videoId: string, format: string): Promise<string> {
+    async downloadVideo(videoId: string, formatId: string): Promise<string> {
         // For security reasons, browsers cannot directly download YouTube videos
         // We'll redirect to a safe downloadable service
 

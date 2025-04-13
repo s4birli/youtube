@@ -186,7 +186,7 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
 
         try {
             // Open external download service
-            const safeDownloadUrl = await YoutubeFrontendService.downloadVideo(videoId, selectedFormat.format_id);
+            await YoutubeFrontendService.downloadVideo(videoId, selectedFormat.format_id);
 
             // Simulate progress
             setDownloadProgress(100);
@@ -206,6 +206,10 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
 
     // Direct download function
     const initiateDirectDownload = (downloadUrl: string, filename: string) => {
+        // Store the URL for potential future use
+        setDownloadUrl(downloadUrl);
+        setShowDownloadButton(true);
+
         // Build the full URL using the environment variable or fallback to localhost:3000
         // Make sure this matches what was set in docker-compose.yml
 
@@ -314,6 +318,9 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
 
         setIsDownloading(true);
         setDownloadProgress(0);
+        // Reset UI state
+        setShowDownloadButton(false);
+        setDownloadUrl(null);
 
         try {
             const download = await YoutubeService.downloadVideo({
@@ -364,7 +371,8 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
             try {
                 const audioFormat = videoData.formats.find(f => f.vcodec === 'none' && f.acodec === 'mp3');
                 if (audioFormat) {
-                    const safeDownloadUrl = await YoutubeFrontendService.downloadVideo(videoId, audioFormat.format_id);
+                    // Just call the download method, don't need to capture the URL
+                    await YoutubeFrontendService.downloadVideo(videoId, audioFormat.format_id);
 
                     // Simulate progress
                     setDownloadProgress(100);
@@ -389,6 +397,9 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
 
         setIsDownloading(true);
         setDownloadProgress(0);
+        // Reset UI state
+        setShowDownloadButton(false);
+        setDownloadUrl(null);
 
         try {
             const download = await YoutubeService.downloadMP3(`https://www.youtube.com/watch?v=${videoId}`);

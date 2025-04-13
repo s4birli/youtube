@@ -1,46 +1,59 @@
-FROM node:20-slim AS build
+FROM node:20-alpine as builder
 
 WORKDIR /app
 
-# Copy package files and install dependencies
+# Install Python and dependencies required for yt-dlp
+RUN apk add --no-cache python3 py3-pip ffmpeg
+
+# Copy package files
 COPY package*.json ./
+
+# Install dependencies
 RUN npm ci
 
-# Copy source files and build
-COPY tsconfig.json ./
-COPY src ./src
+# Copy source code
+COPY . .
+
+# Build application
 RUN npm run build
 
-# Create production image
-FROM node:20-slim
-
-# Ensure required system packages for youtube-dl-exec
-RUN apt-get update && apt-get install -y \
-    python3 \
-    python3-pip \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+# Production stage
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files and install production dependencies only
+# Install Python and dependencies required for building/running
+RUN apk add --no-cache python3 py3-pip ffmpeg
+
+# Install yt-dlp globally with pip
+RUN python3 -m venv /opt/venv && \
+    /opt/venv/bin/pip install yt-dlp && \
+    ln -s /opt/venv/bin/yt-dlp /usr/local/bin/yt-dlp
+
+# Copy package files
 COPY package*.json ./
-RUN npm ci --only=production
 
-# Copy built files from build stage
-COPY --from=build /app/dist ./dist
+# Install production dependencies only and skip all scripts
+RUN npm ci --omit=dev --ignore-scripts
 
-# Create data directory
-RUN mkdir -p /app/data
+# Copy built app from builder stage
+COPY --from=builder /app/dist ./dist
 
-# Environment variables
-ENV NODE_ENV=production
-ENV PORT=3000
-ENV HOST=0.0.0.0
-ENV DOWNLOAD_TEMP_DIR=/app/data
+# Create directories for data and public
+RUN mkdir -p ./data ./public
+
+# Make yt-dlp executable available in PATH
+ENV PATH="/opt/venv/bin:${PATH}"
 
 # Expose port
 EXPOSE 3000
 
-# Run the application
-CMD ["node", "dist/index.js"] 
+# Override the yt-dlp-exec path to use the global yt-dlp
+ENV YT_DLP_PATH="/usr/local/bin/yt-dlp"
+
+# Create the node_modules binary directory if it doesn't exist and create a symlink
+RUN mkdir -p /app/node_modules/yt-dlp-exec/bin && \
+    ln -sf /usr/local/bin/yt-dlp /app/node_modules/yt-dlp-exec/bin/yt-dlp
+
+# Command to run
+CMD ["npm", "start"] 

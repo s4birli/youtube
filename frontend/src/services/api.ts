@@ -106,8 +106,12 @@ export const YoutubeService = {
      * @param id Download ID
      */
     async getDownloadUrl(id: string): Promise<string> {
-        // Return direct URL to the download endpoint
-        return `${api.defaults.baseURL}${API_ENDPOINTS.DOWNLOAD}/${id}`;
+        // Get the origin part of the URL (protocol + host)
+        // This will avoid any path duplication issues
+        const origin = window.location.origin; // e.g., "http://localhost:3000"
+
+        // Construct the download URL directly using the origin
+        return `${origin}/api${API_ENDPOINTS.DOWNLOAD}/${id}`;
     },
 
     /**

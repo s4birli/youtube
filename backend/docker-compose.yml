@@ -15,4 +15,5 @@ services:
       - PORT=3000
       - HOST=0.0.0.0
       - DOWNLOAD_TEMP_DIR=/app/data
+      - YT_DLP_PATH=/usr/local/bin/yt-dlp
     restart: unless-stopped 

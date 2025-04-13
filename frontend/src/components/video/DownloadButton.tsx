@@ -77,10 +77,16 @@ const DownloadButton = ({
     const handleDownloadFile = () => {
         if (!downloadUrl) return;
 
+        // Open the URL in a new tab to download directly
+        window.open(downloadUrl, '_blank');
+
+        // Alternative direct download approach
+        /* 
         // Create a temporary link element
         const link = document.createElement('a');
         link.href = downloadUrl;
-        link.setAttribute('download', `video-${videoId}`);
+        link.target = '_blank'; // Open in new tab
+        link.rel = 'noopener noreferrer'; // Security best practice
         document.body.appendChild(link);
 
         // Trigger the download
@@ -88,6 +94,7 @@ const DownloadButton = ({
 
         // Cleanup
         document.body.removeChild(link);
+        */
     };
 
     if (downloadUrl) {

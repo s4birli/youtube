@@ -35,6 +35,9 @@ const envSchema = z.object({
 
   // Worker pool settings
   WORKER_POOL_SIZE: z.coerce.number().default(4),
+
+  // YT-DLP executable path
+  YT_DLP_PATH: z.string().optional(),
 });
 
 // Parse environment variables

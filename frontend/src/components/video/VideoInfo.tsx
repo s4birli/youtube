@@ -1,3 +1,4 @@
+// @ts-ignore
 import { useState, useEffect } from 'react';
 import { VideoResponse, VideoFormat } from '../../types/video.types';
 import { YoutubeService } from '../../services/api';
@@ -166,10 +167,11 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
 
     // Direct download function
     const initiateDirectDownload = (downloadUrl: string, filename: string) => {
-        const fullUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}${downloadUrl}`;
+        // Build the full URL using the environment variable or fallback to localhost:3000
+        // Make sure this matches what was set in docker-compose.yml
 
         try {
-            const newWindow = window.open(fullUrl, '_blank');
+            const newWindow = window.open(downloadUrl, '_blank');
 
             if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
                 throw new Error("Popup blocked");
@@ -184,7 +186,7 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
             const iframe = document.createElement('iframe');
             iframe.style.display = 'none';
             document.body.appendChild(iframe);
-            iframe.src = fullUrl;
+            iframe.src = downloadUrl;
 
             setTimeout(() => {
                 if (document.body.contains(iframe)) {
@@ -219,7 +221,7 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
             `;
 
             downloadButton.onclick = () => {
-                window.open(fullUrl, '_blank');
+                window.open(downloadUrl, '_blank');
 
                 const infoDiv = document.createElement('div');
                 infoDiv.style.position = 'fixed';
@@ -257,7 +259,7 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
         } catch (error) {
             console.error("Error showing manual download button:", error);
 
-            alert(`Download could not be started. Please copy and paste this URL in your browser:\n\n${fullUrl}`);
+            alert(`Download could not be started. Please copy and paste this URL in your browser:\n\n${downloadUrl}`);
         }
     };
 
@@ -337,6 +339,9 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
                     <p className="text-white text-lg">Preparing download...</p>
                     {downloadProgress > 0 && (
                         <p className="text-white text-sm mt-2">{downloadProgress}%</p>
+                    )}
+                    {showDownloadButton && downloadUrl && (
+                        <div className="hidden">{downloadUrl}</div>
                     )}
                 </div>
             </div>,

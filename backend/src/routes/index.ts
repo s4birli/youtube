@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import youtubeRoutes from './youtube.routes';
 import metadataRoutes from './metadata.routes';
-import cookiesRoutes from './cookies.routes';
 
 const router = Router();
 
@@ -13,6 +12,5 @@ router.get('/health', (req, res) => {
 // API routes
 router.use('/youtube', youtubeRoutes);
 router.use('/metadata', metadataRoutes);
-router.use('/cookies', cookiesRoutes);
 
 export default router;

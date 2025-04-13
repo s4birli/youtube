@@ -7,10 +7,6 @@ export interface VideoDetails {
     uploadDate: string;
     views: number;
     author: string;
-    lengthSeconds?: string;
-    viewCount?: string;
-    channelId?: string;
-    thumbnails?: Array<{ url: string; height: number; width: number }>;
 }
 
 export interface VideoFormat {
@@ -27,20 +23,10 @@ export interface VideoFormat {
     normalizedResolution?: string;
 }
 
-export type Format = VideoFormat;
-
 export interface VideoResponse {
     id: string;
     formats: VideoFormat[];
     videoDetails: VideoDetails;
-    title?: string;
-    description?: string;
-    duration?: number;
-    uploadDate?: string;
-    uploader?: string;
-    channel?: string;
-    thumbnail?: string;
-    _frontend_processed?: boolean;
 }
 
 export interface DownloadRequest {

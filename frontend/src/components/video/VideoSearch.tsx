@@ -1,6 +1,5 @@
 import { useState, memo, useEffect } from 'react';
 import { YoutubeService } from '../../services/api';
-import { YoutubeFrontendService } from '../../youtube-frontend';
 import { VideoResponse } from '../../types/video.types';
 
 interface VideoSearchProps {
@@ -18,7 +17,6 @@ const VideoSearch = ({
 }: VideoSearchProps) => {
     const [url, setUrl] = useState(initialValue);
     const [inputError, setInputError] = useState('');
-    const [useFrontendAPI, setUseFrontendAPI] = useState(false);
 
     // Update url when initialValue changes
     useEffect(() => {
@@ -47,57 +45,19 @@ const VideoSearch = ({
         setInputError('');
         onLoadingChange(true);
 
-        // Try frontend API first if enabled
-        if (useFrontendAPI) {
-            try {
-                const videoInfo = await YoutubeFrontendService.getVideoInfo(url);
-                onVideoInfo(videoInfo);
-                return;
-            } catch (frontendError) {
-                console.error('Frontend API error:', frontendError);
-                // Continue to try backend as fallback
-            } finally {
-                onLoadingChange(false);
+        try {
+            const videoInfo = await YoutubeService.getVideoInfo(url);
+
+            if (!videoInfo || !videoInfo.videoDetails) {
+                throw new Error('Invalid response format from server');
             }
-        } else {
-            // Use backend API
-            try {
-                const videoInfo = await YoutubeService.getVideoInfo(url);
 
-                if (!videoInfo || !videoInfo.videoDetails) {
-                    throw new Error('Invalid response format from server');
-                }
-
-                onVideoInfo(videoInfo);
-            } catch (error) {
-                console.error('Error fetching video info:', error);
-
-                // If backend fails with authentication error, suggest frontend API
-                const errorMessage = error instanceof Error ? error.message : 'Failed to fetch video information';
-
-                if (errorMessage.toLowerCase().includes('sign in') ||
-                    errorMessage.toLowerCase().includes('authentication') ||
-                    errorMessage.toLowerCase().includes('bot')) {
-
-                    // Auto-switch to frontend API and retry
-                    setUseFrontendAPI(true);
-                    onError(`${errorMessage} - Switching to frontend mode...`);
-
-                    // Retry with frontend API
-                    try {
-                        const videoInfo = await YoutubeFrontendService.getVideoInfo(url);
-                        onVideoInfo(videoInfo);
-                        return;
-                    } catch (frontendError) {
-                        console.error('Frontend API retry failed:', frontendError);
-                        onError(`${errorMessage} - Please try our cookie helper to fix authentication.`);
-                    }
-                } else {
-                    onError(errorMessage);
-                }
-            } finally {
-                onLoadingChange(false);
-            }
+            onVideoInfo(videoInfo);
+        } catch (error) {
+            console.error('Error fetching video info:', error);
+            onError(error instanceof Error ? error.message : 'Failed to fetch video information');
+        } finally {
+            onLoadingChange(false);
         }
     };
 
@@ -124,26 +84,13 @@ const VideoSearch = ({
                     <p className="mt-2 text-red-600 text-sm">{inputError}</p>
                 )}
 
-                <div className="mt-4 flex justify-center items-center space-x-3">
+                <div className="mt-4 flex justify-center space-x-3">
                     <button
                         type="submit"
                         className="px-5 py-2 bg-youtube-red hover:bg-youtube-darkred text-white rounded-md font-medium text-m transition-colors w-36"
                     >
                         Get Info
                     </button>
-
-                    <label className="inline-flex items-center cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={useFrontendAPI}
-                            onChange={() => setUseFrontendAPI(!useFrontendAPI)}
-                            className="sr-only peer"
-                        />
-                        <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-youtube-red rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-youtube-red"></div>
-                        <span className="ms-3 text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Frontend Mode
-                        </span>
-                    </label>
                 </div>
             </div>
         </form>

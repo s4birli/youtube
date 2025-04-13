@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react';
 import { VideoResponse, VideoFormat } from '../../types/video.types';
 import { YoutubeService } from '../../services/api';
-import { YoutubeFrontendService } from '../../services/youtube-frontend';
 import { createPortal } from 'react-dom';
 
 interface VideoInfoProps {
@@ -19,20 +18,9 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
     const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
     const [showDownloadButton, setShowDownloadButton] = useState(false);
     const [selectedResolution, setSelectedResolution] = useState<string | null>(null);
-    const [isFrontendMode, setIsFrontendMode] = useState(false);
 
     // Early return if no data - AFTER all hooks are declared
     if (!videoData || !videoData.videoDetails) return null;
-
-    // Detect if this is data from the frontend service
-    useEffect(() => {
-        // Check if this response is from our frontend service
-        if (videoData && (videoData as any)._frontend_processed) {
-            setIsFrontendMode(true);
-        } else {
-            setIsFrontendMode(false);
-        }
-    }, [videoData]);
 
     const { videoDetails } = videoData;
     const { title, duration } = videoDetails;
@@ -177,39 +165,8 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
         }
     };
 
-    // Handle download for frontend mode
-    const handleFrontendDownload = async () => {
-        if (!selectedFormat) return;
-
-        setIsDownloading(true);
-        setDownloadProgress(10);
-
-        try {
-            // Open external download service
-            await YoutubeFrontendService.downloadVideo(videoId, selectedFormat.format_id);
-
-            // Simulate progress
-            setDownloadProgress(100);
-            setTimeout(() => {
-                setIsDownloading(false);
-                setDownloadProgress(0);
-            }, 1000);
-
-            // Show success message
-            alert(`Redirected to download service. Please complete the download there.`);
-        } catch (error) {
-            console.error('Error initiating frontend download:', error);
-            alert('Could not initiate download. Please try again.');
-            setIsDownloading(false);
-        }
-    };
-
     // Direct download function
     const initiateDirectDownload = (downloadUrl: string, filename: string) => {
-        // Store the URL for potential future use
-        setDownloadUrl(downloadUrl);
-        setShowDownloadButton(true);
-
         // Build the full URL using the environment variable or fallback to localhost:3000
         // Make sure this matches what was set in docker-compose.yml
 
@@ -300,140 +257,74 @@ const VideoInfo = ({ videoData }: VideoInfoProps) => {
 
             return;
         } catch (error) {
-            console.error("Error creating download button:", error);
-        }
+            console.error("Error showing manual download button:", error);
 
-        // If all else fails, show a copy-paste link
-        alert(`Direct download link: ${downloadUrl}\n\nPlease copy this link and paste it in a new tab to download.`);
+            alert(`Download could not be started. Please copy and paste this URL in your browser:\n\n${downloadUrl}`);
+        }
     };
 
-    // Regular backend download handler
+    // Handle download for the selected format
     const handleDownload = async () => {
         if (!selectedFormat) return;
 
-        if (isFrontendMode) {
-            handleFrontendDownload();
-            return;
-        }
-
-        setIsDownloading(true);
-        setDownloadProgress(0);
-        // Reset UI state
-        setShowDownloadButton(false);
-        setDownloadUrl(null);
-
         try {
-            const download = await YoutubeService.downloadVideo({
-                videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
-                formatId: selectedFormat.format_id
+            setIsDownloading(true);
+            setDownloadProgress(0);
+            setShowDownloadButton(false);
+            setDownloadUrl(null);
+
+            // Create the proper YouTube URL based on the video ID
+            const youtubeUrl = `https://www.youtube.com/watch?v=${videoDetails.id}`;
+
+            const response = await YoutubeService.downloadVideo({
+                videoUrl: youtubeUrl,
+                formatId: selectedFormat.format_id,
+                quality: '0'
             });
 
-            // Set download ID and setup polling for progress
-            const downloadId = download.id;
-            const checkProgressInterval = setInterval(async () => {
-                try {
-                    const progressInfo = await YoutubeService.getDownloadProgress(downloadId);
-                    setDownloadProgress(progressInfo.progress);
+            // Use the download endpoint directly
+            const downloadUrl = `${import.meta.env.VITE_API_BASE_URL || ''}/api/youtube/download/${response.id}`;
+            const filename = response.fileName || `${videoDetails.title}.mp4`;
 
-                    if (progressInfo.status === 'completed') {
-                        clearInterval(checkProgressInterval);
-                        setIsDownloading(false);
-
-                        // Get download URL
-                        const url = await YoutubeService.getDownloadUrl(downloadId);
-                        initiateDirectDownload(url, download.fileName);
-                    } else if (progressInfo.status === 'failed') {
-                        clearInterval(checkProgressInterval);
-                        setIsDownloading(false);
-                        alert(`Download failed: ${progressInfo.error || 'Unknown error'}`);
-                    }
-                } catch (error) {
-                    console.error('Error checking progress:', error);
-                    clearInterval(checkProgressInterval);
-                    setIsDownloading(false);
-                    alert('Error checking download progress. Please try again.');
-                }
-            }, 1000);
-        } catch (error) {
-            console.error('Error initiating download:', error);
+            setDownloadUrl(downloadUrl);
             setIsDownloading(false);
-            alert('Error starting download. Please try again.');
+            setShowDownloadButton(true);
+
+            // Initiate download directly
+            initiateDirectDownload(downloadUrl, filename);
+
+        } catch (error) {
+            console.error('Error starting download:', error);
+            setIsDownloading(false);
         }
     };
 
-    // Handle MP3 download
     const handleMP3Download = async () => {
-        if (isFrontendMode) {
-            // Handle MP3 download in frontend mode
-            setIsDownloading(true);
-            setDownloadProgress(10);
-
-            try {
-                const audioFormat = videoData.formats.find(f => f.vcodec === 'none' && f.acodec === 'mp3');
-                if (audioFormat) {
-                    // Just call the download method, don't need to capture the URL
-                    await YoutubeFrontendService.downloadVideo(videoId, audioFormat.format_id);
-
-                    // Simulate progress
-                    setDownloadProgress(100);
-                    setTimeout(() => {
-                        setIsDownloading(false);
-                        setDownloadProgress(0);
-                    }, 1000);
-
-                    alert(`Redirected to MP3 download service. Please complete the download there.`);
-                } else {
-                    // If no MP3 format found, use generic download URL
-                    window.open(`https://www.y2mate.com/youtube-mp3/${videoId}`, '_blank');
-                    setIsDownloading(false);
-                }
-            } catch (error) {
-                console.error('Error initiating frontend MP3 download:', error);
-                alert('Could not initiate MP3 download. Please try again.');
-                setIsDownloading(false);
-            }
-            return;
-        }
-
-        setIsDownloading(true);
-        setDownloadProgress(0);
-        // Reset UI state
-        setShowDownloadButton(false);
-        setDownloadUrl(null);
-
         try {
-            const download = await YoutubeService.downloadMP3(`https://www.youtube.com/watch?v=${videoId}`);
+            setIsDownloading(true);
+            setDownloadProgress(0);
+            setShowDownloadButton(false);
+            setDownloadUrl(null);
 
-            // Set download ID and setup polling for progress
-            const downloadId = download.id;
-            const checkProgressInterval = setInterval(async () => {
-                try {
-                    const progressInfo = await YoutubeService.getDownloadProgress(downloadId);
-                    setDownloadProgress(progressInfo.progress);
+            // Create the proper YouTube URL based on the video ID
+            const youtubeUrl = `https://www.youtube.com/watch?v=${videoDetails.id}`;
 
-                    if (progressInfo.status === 'completed') {
-                        clearInterval(checkProgressInterval);
-                        setIsDownloading(false);
+            const response = await YoutubeService.downloadMP3(youtubeUrl);
 
-                        // Get download URL
-                        const url = await YoutubeService.getDownloadUrl(downloadId);
-                        initiateDirectDownload(url, download.fileName);
-                    } else if (progressInfo.status === 'failed') {
-                        clearInterval(checkProgressInterval);
-                        setIsDownloading(false);
-                        alert(`Download failed: ${progressInfo.error || 'Unknown error'}`);
-                    }
-                } catch (error) {
-                    console.error('Error checking progress:', error);
-                    clearInterval(checkProgressInterval);
-                    setIsDownloading(false);
-                    alert('Error checking download progress. Please try again.');
-                }
-            }, 1000);
-        } catch (error) {
-            console.error('Error initiating MP3 download:', error);
+            // Use the download endpoint directly
+            const downloadUrl = `${import.meta.env.VITE_API_BASE_URL || ''}/api/youtube/download/${response.id}`;
+            const filename = response.fileName || `${videoDetails.title}.mp3`;
+
+            setDownloadUrl(downloadUrl);
             setIsDownloading(false);
-            alert('Error starting MP3 download. Please try again.');
+            setShowDownloadButton(true);
+
+            // Initiate download directly
+            initiateDirectDownload(downloadUrl, filename);
+
+        } catch (error) {
+            console.error('Error starting MP3 download:', error);
+            setIsDownloading(false);
         }
     };
 

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { VideoResponse, VideoFormat } from '../../types/video.types';
 import { YoutubeService } from '../../services/api';
-import { YoutubeFrontendService } from '../../youtube-frontend';
+import { YoutubeFrontendService } from '../../services/youtube-frontend';
 import { createPortal } from 'react-dom';
 
 interface VideoInfoProps {

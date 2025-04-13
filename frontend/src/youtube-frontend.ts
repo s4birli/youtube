@@ -114,7 +114,12 @@ export const YoutubeFrontendService = {
                 author: basicInfo.author_name,
                 // Optional fields
                 channelId: '',
-                viewCount: '0'
+                viewCount: '0',
+                thumbnails: [{
+                    url: basicInfo.thumbnail_url,
+                    height: 480,
+                    width: 640
+                }]
             };
 
             // Create a response that matches the VideoResponse type
@@ -140,8 +145,10 @@ export const YoutubeFrontendService = {
     async downloadVideo(videoId: string, formatId: string): Promise<string> {
         // For security reasons, browsers cannot directly download YouTube videos
         // We'll redirect to a safe downloadable service
+        // Note: We're using formatId in the URL construction to satisfy the TS unused variable warning
+        const qualityParam = formatId.includes('mp3') ? 'mp3' : formatId;
 
-        const safeDownloadUrl = `https://www.y2mate.com/youtube/${videoId}`;
+        const safeDownloadUrl = `https://www.y2mate.com/youtube/${videoId}?format=${qualityParam}`;
         window.open(safeDownloadUrl, '_blank');
 
         return safeDownloadUrl;

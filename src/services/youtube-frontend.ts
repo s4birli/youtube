@@ -1,4 +1,4 @@
-import { VideoResponse, VideoFormat, VideoDetails } from '../types/video.types';
+import { VideoResponse, VideoFormat, VideoDetails } from '../../frontend/src/types/video.types';
 
 /**
  * Frontend YouTube Service - handles YouTube operations directly in the browser

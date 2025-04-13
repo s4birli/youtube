@@ -105,7 +105,6 @@ export class YoutubeService implements IYoutubeService {
           noCheckCertificate: true,
           noWarnings: true,
           socketTimeout: 10000,
-          cookies: '/app/youtube_cookies.txt',
         }),
         timeoutPromise,
       ]);
@@ -266,7 +265,6 @@ export class YoutubeService implements IYoutubeService {
         noWarnings: true,
         addHeader: ['referer:youtube.com', 'user-agent:Mozilla/5.0'],
         verbose: true,
-        cookies: '/app/youtube_cookies.txt',
       };
 
       // Format selection

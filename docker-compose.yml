@@ -20,6 +20,7 @@ services:
     volumes:
       - backend_data:/app/data
       - backend_public:/app/public
+      - ./backend/youtube_cookies.txt:/app/youtube_cookies.txt
     deploy:
       resources:
         limits:

@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGithub } from '@fortawesome/free-brands-svg-icons';
 import VideoSearch from '../components/video/VideoSearch';
 import VideoInfo from '../components/video/VideoInfo';
+import CookieHelper from '../components/CookieHelper';
 import { VideoResponse } from '../types/video.types';
 
 const HomePage = () => {
@@ -12,20 +13,34 @@ const HomePage = () => {
     const [videoData, setVideoData] = useState<VideoResponse | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
+    const [showCookieHelper, setShowCookieHelper] = useState(false);
 
     const handleVideoInfo = (data: VideoResponse) => {
         setVideoData(data);
         setError(null);
+        setShowCookieHelper(false);
     };
 
     const handleError = (message: string) => {
         setError(message);
         setVideoData(null);
+
+        // Show cookie helper if error is related to authentication
+        const authErrorKeywords = ['sign in', 'confirm', 'authentication', 'bot', 'cookies'];
+        if (authErrorKeywords.some(keyword => message.toLowerCase().includes(keyword))) {
+            setShowCookieHelper(true);
+        } else {
+            setShowCookieHelper(false);
+        }
     };
 
     const handleLoadingChange = (loading: boolean) => {
         setIsLoading(loading);
+    };
+
+    const handleCookieSuccess = () => {
+        setShowCookieHelper(false);
+        setError(null);
     };
 
     return (
@@ -56,9 +71,15 @@ const HomePage = () => {
                     </div>
                 )}
 
-                {error && (
+                {error && !showCookieHelper && (
                     <div className="mt-8 w-full max-w-3xl p-4 bg-red-100 border-l-4 border-red-500 text-red-700">
                         <p>{error}</p>
+                    </div>
+                )}
+
+                {showCookieHelper && (
+                    <div className="mt-8 w-full max-w-3xl">
+                        <CookieHelper onSuccess={handleCookieSuccess} />
                     </div>
                 )}
 
@@ -68,7 +89,7 @@ const HomePage = () => {
                     </div>
                 )}
 
-                {!videoData && !isLoading && !error && (
+                {!videoData && !isLoading && !error && !showCookieHelper && (
                     <div className="mt-16 text-center">
                         <h2 className="text-2xl font-semibold text-youtube-black dark:text-dark-text-primary mb-4">
                             How to use

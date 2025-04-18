@@ -1,9 +1,12 @@
-FROM node:20-alpine as builder
+FROM node:20-bookworm-slim as builder
 
 WORKDIR /app
 
 # Install required dependencies including build tools and network tools
-RUN apk add --no-cache ffmpeg curl python3 g++ make bind-tools
+# Use apt-get for Debian-based image
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg curl python3 g++ make dnsutils \
+    && rm -rf /var/lib/apt/lists/*
 
 # Network Diagnostics
 RUN echo "--- Builder Stage Network Diagnostics ---" && \
@@ -30,12 +33,15 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM node:20-alpine
+FROM node:20-bookworm-slim
 
 WORKDIR /app
 
 # Install required dependencies including all necessary packages for yt-dlp and network tools
-RUN apk add --no-cache ffmpeg curl python3 py3-pip ca-certificates openssl bash bind-tools
+# Use apt-get for Debian-based image
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg curl python3 python3-pip ca-certificates openssl bash dnsutils \
+    && rm -rf /var/lib/apt/lists/*
 
 # Ensure Python is correctly installed and linked
 RUN ln -sf /usr/bin/python3 /usr/bin/python && \

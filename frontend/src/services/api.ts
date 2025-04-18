@@ -117,11 +117,15 @@ export const YoutubeService = {
     /**
      * Direct MP3 download helper - gets best audio quality in MP3 format
      * @param videoUrl YouTube video URL
+     * @param title Optional title to use for the file
      */
-    async downloadMP3(videoUrl: string): Promise<DownloadResponse> {
+    async downloadMP3(videoUrl: string, title?: string): Promise<DownloadResponse> {
         try {
             // Call the direct MP3 download endpoint
-            const response = await api.post(API_ENDPOINTS.DOWNLOAD_MP3, { url: videoUrl });
+            const response = await api.post(API_ENDPOINTS.DOWNLOAD_MP3, {
+                url: videoUrl,
+                title
+            });
             return response.data;
         } catch (error) {
             return handleApiError(error);

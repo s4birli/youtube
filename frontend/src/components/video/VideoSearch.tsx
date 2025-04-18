@@ -71,7 +71,7 @@ const VideoSearch = ({
                         placeholder="Enter YouTube video URL"
                         value={url}
                         onChange={(e) => setUrl(e.target.value)}
-                        className={`w-full py-4 px-5 pr-12 border ${inputError ? 'border-red-500' : 'border-gray-300'} rounded-full focus:outline-none focus:ring-2 focus:ring-youtube-red focus:border-transparent shadow-sm hover:shadow-md transition-shadow`}
+                        className={`text-black dark:text-white w-full py-4 px-5 pr-12 border ${inputError ? 'border-red-500' : 'border-gray-300'} rounded-full focus:outline-none focus:ring-2 focus:ring-youtube-red focus:border-transparent shadow-sm hover:shadow-md transition-shadow`}
                     />
                     <div className="absolute inset-y-0 right-0 flex items-center pr-4">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">

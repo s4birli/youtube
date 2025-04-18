@@ -27,7 +27,8 @@ RUN apk add --no-cache ffmpeg curl
 
 # Download latest yt-dlp and set permissions
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
-    && chmod +x /usr/local/bin/yt-dlp
+    && chmod a+rx /usr/local/bin/yt-dlp \
+    && ls -la /usr/local/bin/yt-dlp
 
 # Copy package files
 COPY package*.json ./
@@ -49,7 +50,11 @@ ENV YT_DLP_PATH="/usr/local/bin/yt-dlp"
 
 # Create the node_modules binary directory if it doesn't exist and create a symlink
 RUN mkdir -p /app/node_modules/yt-dlp-exec/bin && \
-    ln -sf /usr/local/bin/yt-dlp /app/node_modules/yt-dlp-exec/bin/yt-dlp
+    ln -sf /usr/local/bin/yt-dlp /app/node_modules/yt-dlp-exec/bin/yt-dlp && \
+    ls -la /app/node_modules/yt-dlp-exec/bin/yt-dlp
+
+# Test yt-dlp installation
+RUN /usr/local/bin/yt-dlp --version || echo "yt-dlp not working properly"
 
 # Command to run
 CMD ["npm", "start"] 

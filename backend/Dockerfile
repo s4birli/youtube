@@ -8,26 +8,20 @@ RUN apk add --no-cache ffmpeg curl python3 g++ make bind-tools
 # Network Diagnostics
 RUN echo "--- Builder Stage Network Diagnostics ---" && \
     nslookup registry.npmjs.org && \
-    curl -v https://registry.npmjs.org/ && \
+    curl -Iv https://registry.npmjs.org/ && \
     echo "--- End Builder Stage Network Diagnostics ---"
-
-# Set npm config for better reliability
-RUN npm config set registry https://registry.npmjs.org/ \
-    && npm config set fetch-retry-mintimeout 20000 \
-    && npm config set fetch-retry-maxtimeout 120000 \
-    && npm config set network-timeout 300000
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies with retry logic
+# Install dependencies with retry logic and verbose logging
 RUN echo "Installing npm dependencies..." && \
-    (npm ci --no-audit --no-fund || \
+    (npm ci --registry=https://registry.npmjs.org/ --loglevel=verbose --no-audit --no-fund || \
     (echo "First attempt failed, retrying..." && \
     npm cache clean --force && \
-    npm ci --no-audit --no-fund)) || \
+    npm ci --registry=https://registry.npmjs.org/ --loglevel=verbose --no-audit --no-fund)) || \
     (echo "Second attempt failed, trying with legacy peer deps..." && \
-    npm ci --no-audit --no-fund --legacy-peer-deps)
+    npm ci --registry=https://registry.npmjs.org/ --loglevel=verbose --no-audit --no-fund --legacy-peer-deps)
 
 # Copy source code
 COPY . .
@@ -51,14 +45,8 @@ RUN ln -sf /usr/bin/python3 /usr/bin/python && \
 # Network Diagnostics
 RUN echo "--- Production Stage Network Diagnostics ---" && \
     nslookup registry.npmjs.org && \
-    curl -v https://registry.npmjs.org/ && \
+    curl -Iv https://registry.npmjs.org/ && \
     echo "--- End Production Stage Network Diagnostics ---"
-
-# Set npm config for better reliability
-RUN npm config set registry https://registry.npmjs.org/ \
-    && npm config set fetch-retry-mintimeout 20000 \
-    && npm config set fetch-retry-maxtimeout 120000 \
-    && npm config set network-timeout 300000
 
 # Download latest yt-dlp and set permissions
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
@@ -75,14 +63,14 @@ RUN /usr/local/bin/yt-dlp --no-check-certificate --dump-user-agent
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only with improved reliability
+# Install production dependencies only with improved reliability and verbose logging
 RUN echo "Installing production dependencies..." && \
-    (npm ci --omit=dev --ignore-scripts --no-audit --no-fund || \
+    (npm ci --registry=https://registry.npmjs.org/ --loglevel=verbose --omit=dev --ignore-scripts --no-audit --no-fund || \
     (echo "First attempt failed, retrying..." && \
     npm cache clean --force && \
-    npm ci --omit=dev --ignore-scripts --no-audit --no-fund)) || \
+    npm ci --registry=https://registry.npmjs.org/ --loglevel=verbose --omit=dev --ignore-scripts --no-audit --no-fund)) || \
     (echo "Second attempt failed, trying with legacy peer deps..." && \
-    npm ci --omit=dev --ignore-scripts --no-audit --no-fund --legacy-peer-deps)
+    npm ci --registry=https://registry.npmjs.org/ --loglevel=verbose --omit=dev --ignore-scripts --no-audit --no-fund --legacy-peer-deps)
 
 # Copy built app from builder stage
 COPY --from=builder /app/dist ./dist

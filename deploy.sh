@@ -34,7 +34,7 @@ fi
 # Build and start containers with memory limits
 echo "🔨 Building and starting containers..."
 docker-compose down
-docker-compose build
+docker-compose build --network=host
 docker-compose up -d
 
 # Clean up unused images to save space (important on small instances)

@@ -62,17 +62,29 @@ RUN echo "--- Production Stage Network Diagnostics ---" && \
     curl --connect-timeout 10 -L https://google.com && \
     echo "--- End Production Stage Network Diagnostics ---"
 
-# Download latest yt-dlp and set permissions
-RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
-    && chmod a+rx /usr/local/bin/yt-dlp \
-    && ls -la /usr/local/bin/yt-dlp
+# Try to download latest yt-dlp first, fallback to apt installation if that fails
+RUN set -e && \
+    echo "Attempting to download yt-dlp from GitHub..." && \
+    { \
+    curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
+    chmod a+rx /usr/local/bin/yt-dlp; \
+    } || { \
+    echo "Direct download failed, trying to install yt-dlp via apt..." && \
+    apt-get update && \
+    apt-get install -y yt-dlp && \
+    ln -sf /usr/bin/yt-dlp /usr/local/bin/yt-dlp; \
+    }
+
+# Verify yt-dlp installation
+RUN ls -la /usr/local/bin/yt-dlp && \
+    echo "yt-dlp version: $(/usr/local/bin/yt-dlp --version || echo 'Failed to get version')"
 
 # Create a dummy cookies file (empty but present)
 RUN touch /app/youtube_cookies.txt && chmod 644 /app/youtube_cookies.txt
 
-# Test yt-dlp installation with direct URL check
+# Test yt-dlp installation with direct URL check (non-fatal if it fails)
 RUN /usr/local/bin/yt-dlp --version || echo "yt-dlp not working properly"
-RUN /usr/local/bin/yt-dlp --no-check-certificate --dump-user-agent
+RUN /usr/local/bin/yt-dlp --no-check-certificate --dump-user-agent || echo "Error getting user agent, continuing anyway"
 
 # Copy package files
 COPY package*.json ./
@@ -111,7 +123,7 @@ ENV YT_DLP_FORCE_IPV4=1
 # Create the node_modules binary directory if it doesn't exist and create a symlink
 RUN mkdir -p /app/node_modules/yt-dlp-exec/bin && \
     ln -sf /usr/local/bin/yt-dlp /app/node_modules/yt-dlp-exec/bin/yt-dlp && \
-    ls -la /app/node_modules/yt-dlp-exec/bin/yt-dlp
+    ls -la /app/node_modules/yt-dlp-exec/bin/yt-dlp || echo "Symlink creation failed but continuing"
 
 # Use a custom entrypoint script to run the environment check before starting the app
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh

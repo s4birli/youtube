@@ -2,8 +2,14 @@ FROM node:20-alpine as builder
 
 WORKDIR /app
 
-# Install required dependencies including build tools
-RUN apk add --no-cache ffmpeg curl python3 g++ make
+# Install required dependencies including build tools and network tools
+RUN apk add --no-cache ffmpeg curl python3 g++ make bind-tools
+
+# Network Diagnostics
+RUN echo "--- Builder Stage Network Diagnostics ---" && \
+    nslookup registry.npmjs.org && \
+    curl -v https://registry.npmjs.org/ && \
+    echo "--- End Builder Stage Network Diagnostics ---"
 
 # Set npm config for better reliability
 RUN npm config set registry https://registry.npmjs.org/ \
@@ -34,13 +40,19 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install required dependencies including all necessary packages for yt-dlp
-RUN apk add --no-cache ffmpeg curl python3 py3-pip ca-certificates openssl bash
+# Install required dependencies including all necessary packages for yt-dlp and network tools
+RUN apk add --no-cache ffmpeg curl python3 py3-pip ca-certificates openssl bash bind-tools
 
 # Ensure Python is correctly installed and linked
 RUN ln -sf /usr/bin/python3 /usr/bin/python && \
     python --version && \
     python3 --version
+
+# Network Diagnostics
+RUN echo "--- Production Stage Network Diagnostics ---" && \
+    nslookup registry.npmjs.org && \
+    curl -v https://registry.npmjs.org/ && \
+    echo "--- End Production Stage Network Diagnostics ---"
 
 # Set npm config for better reliability
 RUN npm config set registry https://registry.npmjs.org/ \

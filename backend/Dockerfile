@@ -10,8 +10,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Network Diagnostics
 RUN echo "--- Builder Stage Network Diagnostics ---" && \
+    echo "Attempting DNS lookup for registry.npmjs.org..." && \
     nslookup registry.npmjs.org && \
-    curl -Iv https://registry.npmjs.org/ && \
+    echo "Attempting curl to registry.npmjs.org..." && \
+    curl --connect-timeout 10 -L https://registry.npmjs.org/ && \
+    echo "Attempting curl to google.com..." && \
+    curl --connect-timeout 10 -L https://google.com && \
     echo "--- End Builder Stage Network Diagnostics ---"
 
 # Copy package files
@@ -50,8 +54,12 @@ RUN ln -sf /usr/bin/python3 /usr/bin/python && \
 
 # Network Diagnostics
 RUN echo "--- Production Stage Network Diagnostics ---" && \
+    echo "Attempting DNS lookup for registry.npmjs.org..." && \
     nslookup registry.npmjs.org && \
-    curl -Iv https://registry.npmjs.org/ && \
+    echo "Attempting curl to registry.npmjs.org..." && \
+    curl --connect-timeout 10 -L https://registry.npmjs.org/ && \
+    echo "Attempting curl to google.com..." && \
+    curl --connect-timeout 10 -L https://google.com && \
     echo "--- End Production Stage Network Diagnostics ---"
 
 # Download latest yt-dlp and set permissions

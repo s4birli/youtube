@@ -5,30 +5,16 @@ WORKDIR /app
 # Install required dependencies including build tools and network tools
 # Use apt-get for Debian-based image
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg curl python3 g++ make dnsutils \
+    ffmpeg curl python3 g++ make \
     && rm -rf /var/lib/apt/lists/*
-
-# Network Diagnostics
-RUN echo "--- Builder Stage Network Diagnostics ---" && \
-    echo "Attempting DNS lookup for registry.npmjs.org..." && \
-    nslookup registry.npmjs.org || echo "DNS lookup failed but continuing" && \
-    echo "Attempting curl to registry.npmjs.org..." && \
-    curl --connect-timeout 10 -L https://registry.npmjs.org/ || echo "Connection to npmjs.org failed but continuing" && \
-    echo "Attempting curl to google.com..." && \
-    curl --connect-timeout 10 -L https://google.com || echo "Connection to google.com failed but continuing" && \
-    echo "--- End Builder Stage Network Diagnostics ---"
 
 # Copy package files
 COPY package*.json ./
 
 # Install dependencies with retry logic and verbose logging
 RUN echo "Installing npm dependencies..." && \
-    (npm ci --registry=https://registry.npmjs.org/ --loglevel=verbose --no-audit --no-fund || \
-    (echo "First attempt failed, retrying..." && \
-    npm cache clean --force && \
-    npm ci --registry=https://registry.npmjs.org/ --loglevel=verbose --no-audit --no-fund)) || \
-    (echo "Second attempt failed, trying with legacy peer deps..." && \
-    npm ci --registry=https://registry.npmjs.org/ --loglevel=verbose --no-audit --no-fund --legacy-peer-deps)
+    npm ci --registry=https://registry.npmjs.org/ --no-audit --no-fund || \
+    npm ci --registry=https://registry.npmjs.org/ --no-audit --no-fund --legacy-peer-deps
 
 # Copy source code
 COPY . .
@@ -41,26 +27,14 @@ FROM node:20-bookworm-slim
 
 WORKDIR /app
 
-# Install required dependencies including all necessary packages for yt-dlp and network tools
+# Install required dependencies including all necessary packages for yt-dlp
 # Use apt-get for Debian-based image
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg curl python3 python3-pip ca-certificates openssl bash dnsutils \
+    ffmpeg curl python3 python3-pip ca-certificates openssl bash \
     && rm -rf /var/lib/apt/lists/*
 
 # Ensure Python is correctly installed and linked
-RUN ln -sf /usr/bin/python3 /usr/bin/python && \
-    python --version && \
-    python3 --version
-
-# Network Diagnostics
-RUN echo "--- Production Stage Network Diagnostics ---" && \
-    echo "Attempting DNS lookup for registry.npmjs.org..." && \
-    nslookup registry.npmjs.org || echo "DNS lookup failed but continuing" && \
-    echo "Attempting curl to registry.npmjs.org..." && \
-    curl --connect-timeout 10 -L https://registry.npmjs.org/ || echo "Connection to npmjs.org failed but continuing" && \
-    echo "Attempting curl to google.com..." && \
-    curl --connect-timeout 10 -L https://google.com || echo "Connection to google.com failed but continuing" && \
-    echo "--- End Production Stage Network Diagnostics ---"
+RUN ln -sf /usr/bin/python3 /usr/bin/python
 
 # Try to download latest yt-dlp first, fallback to apt installation if that fails
 RUN set -e && \
@@ -75,28 +49,15 @@ RUN set -e && \
     ln -sf /usr/bin/yt-dlp /usr/local/bin/yt-dlp; \
     }
 
-# Verify yt-dlp installation
-RUN ls -la /usr/local/bin/yt-dlp && \
-    echo "yt-dlp version: $(/usr/local/bin/yt-dlp --version || echo 'Failed to get version')"
-
 # Create a dummy cookies file (empty but present)
 RUN touch /app/youtube_cookies.txt && chmod 644 /app/youtube_cookies.txt
-
-# Test yt-dlp installation with direct URL check (non-fatal if it fails)
-RUN /usr/local/bin/yt-dlp --version || echo "yt-dlp not working properly"
-RUN /usr/local/bin/yt-dlp --no-check-certificate --dump-user-agent || echo "Error getting user agent, continuing anyway"
 
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only with improved reliability and verbose logging
-RUN echo "Installing production dependencies..." && \
-    (npm ci --registry=https://registry.npmjs.org/ --loglevel=verbose --omit=dev --ignore-scripts --no-audit --no-fund || \
-    (echo "First attempt failed, retrying..." && \
-    npm cache clean --force && \
-    npm ci --registry=https://registry.npmjs.org/ --loglevel=verbose --omit=dev --ignore-scripts --no-audit --no-fund)) || \
-    (echo "Second attempt failed, trying with legacy peer deps..." && \
-    npm ci --registry=https://registry.npmjs.org/ --loglevel=verbose --omit=dev --ignore-scripts --no-audit --no-fund --legacy-peer-deps)
+# Install production dependencies only with improved reliability
+RUN npm ci --registry=https://registry.npmjs.org/ --omit=dev --no-audit --no-fund || \
+    npm ci --registry=https://registry.npmjs.org/ --omit=dev --no-audit --no-fund --legacy-peer-deps
 
 # Copy built app from builder stage
 COPY --from=builder /app/dist ./dist
@@ -122,8 +83,7 @@ ENV YT_DLP_FORCE_IPV4=1
 
 # Create the node_modules binary directory if it doesn't exist and create a symlink
 RUN mkdir -p /app/node_modules/yt-dlp-exec/bin && \
-    ln -sf /usr/local/bin/yt-dlp /app/node_modules/yt-dlp-exec/bin/yt-dlp && \
-    ls -la /app/node_modules/yt-dlp-exec/bin/yt-dlp || echo "Symlink creation failed but continuing"
+    ln -sf /usr/local/bin/yt-dlp /app/node_modules/yt-dlp-exec/bin/yt-dlp || echo "Symlink creation failed but continuing"
 
 # Use a custom entrypoint script to run the environment check before starting the app
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh

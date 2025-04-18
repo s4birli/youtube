@@ -31,10 +31,15 @@ else
   echo "ℹ️ This is fine since Docker will handle dependencies during the build."
 fi
 
+# Enable BuildKit for faster builds
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+
 # Build and start containers with memory limits
 echo "🔨 Building and starting containers..."
 docker-compose down
-docker-compose build
+echo "⌛ Building containers (this may take a few minutes)..."
+docker-compose build --parallel
 docker-compose up -d
 
 # Clean up unused images to save space (important on small instances)

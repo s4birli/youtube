@@ -9,6 +9,7 @@ SCRIPT_NAME="yt-dlp-wrapper"
 # Log function
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$SCRIPT_NAME] $1" >> "$LOG_FILE"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$SCRIPT_NAME] $1" >&2
 }
 
 # Make sure the log directory exists
@@ -33,30 +34,71 @@ VERSION=$("$YT_DLP_PATH" --version 2>&1)
 log "yt-dlp version: $VERSION"
 
 # Add additional arguments to bypass common issues
-ARGS="--no-check-certificate --no-cache-dir --geo-bypass $*"
+ARGS="--no-check-certificate --no-cache-dir --geo-bypass --verbose $*"
 
 # Execute yt-dlp with all arguments
 log "Executing: $YT_DLP_PATH $ARGS"
-OUTPUT=$("$YT_DLP_PATH" $ARGS 2>&1)
+
+# Run the command and capture both stdout and stderr
+OUTPUT_FILE=$(mktemp)
+ERROR_FILE=$(mktemp)
+
+set -o pipefail
+"$YT_DLP_PATH" $ARGS > "$OUTPUT_FILE" 2> "$ERROR_FILE"
 EXIT_CODE=$?
 
-# Log the result
-if [ $EXIT_CODE -eq 0 ]; then
-  log "Success (exit code: $EXIT_CODE)"
-  # Only log the first few lines of output if successful to avoid huge logs
-  echo "$OUTPUT" | head -n 20 | while read -r line; do
-    log "OUTPUT: $line"
-  done
-  if [ $(echo "$OUTPUT" | wc -l) -gt 20 ]; then
-    log "OUTPUT: ... (output truncated, see full command output below)"
-  fi
-else
+# Check for error and log detailed information
+if [ $EXIT_CODE -ne 0 ]; then
   log "Error (exit code: $EXIT_CODE)"
-  echo "$OUTPUT" | while read -r line; do
-    log "ERROR OUTPUT: $line"
-  done
+  
+  # Log error output
+  if [ -s "$ERROR_FILE" ]; then
+    log "ERROR OUTPUT START --------------------------"
+    cat "$ERROR_FILE" | while read -r line; do
+      log "ERROR: $line"
+    done
+    log "ERROR OUTPUT END ----------------------------"
+  else
+    log "No error output captured"
+  fi
+  
+  # Try running with --verbose to get more information
+  if [ $EXIT_CODE -eq 127 ]; then
+    log "Executable not found error (127). Checking system:"
+    log "PYTHON: $(which python3 2>&1)"
+    log "PYTHON VERSION: $(python3 --version 2>&1)"
+    log "OS INFO: $(cat /etc/*release* 2>&1 || echo 'OS info not available')"
+  fi
+  
+  # Output the error to stderr
+  cat "$ERROR_FILE" >&2
+else
+  log "Success (exit code: $EXIT_CODE)"
+  
+  # Only log the first few lines of output if successful
+  if [ -s "$OUTPUT_FILE" ]; then
+    OUTPUT_LINES=$(wc -l < "$OUTPUT_FILE")
+    log "Command produced $OUTPUT_LINES lines of output"
+    
+    if [ "$OUTPUT_LINES" -gt 20 ]; then
+      head -n 20 "$OUTPUT_FILE" | while read -r line; do
+        log "OUTPUT: $line"
+      done
+      log "OUTPUT: ... (output truncated, total $OUTPUT_LINES lines)"
+    else
+      cat "$OUTPUT_FILE" | while read -r line; do
+        log "OUTPUT: $line"
+      done
+    fi
+  else
+    log "Command produced no output"
+  fi
 fi
 
-# Pass the output back to the calling program
-echo "$OUTPUT"
+# Output the result
+cat "$OUTPUT_FILE"
+
+# Clean up temp files
+rm -f "$OUTPUT_FILE" "$ERROR_FILE"
+
 exit $EXIT_CODE 

@@ -7,6 +7,19 @@ echo "Current directory: $(pwd)"
 echo "Files in current directory: $(ls -la)"
 echo "Python version: $(python3 --version 2>&1 || echo 'Python not found')"
 
+# Install additional dependencies if needed
+if ! which python3 >/dev/null 2>&1; then
+  echo "Python3 not found, installing..."
+  apk add --no-cache python3 py3-pip
+fi
+
+# Create a cookies file if it doesn't exist
+if [ ! -f "/app/youtube_cookies.txt" ]; then
+  echo "Creating empty cookies file..."
+  touch /app/youtube_cookies.txt
+  chmod 644 /app/youtube_cookies.txt
+fi
+
 # Run the environment check script if it exists
 if [ -f "/app/scripts/check-yt-dlp.js" ]; then
   echo "Running YT-DLP environment check..."
@@ -45,11 +58,26 @@ fi
 echo "Testing yt-dlp..."
 /usr/local/bin/yt-dlp --version || echo "Warning: yt-dlp test failed"
 
-# Create a cookies file if it doesn't exist
-if [ ! -f "/app/youtube_cookies.txt" ]; then
-  echo "Creating empty cookies file..."
-  touch /app/youtube_cookies.txt
-  chmod 644 /app/youtube_cookies.txt
+# Test YouTube connectivity
+echo "Testing YouTube connectivity..."
+YOUTUBE_TEST_URL="https://www.youtube.com/watch?v=jNQXAC9IVRw"
+echo "Attempting to access: $YOUTUBE_TEST_URL"
+CONNECTABILITY=$(curl -s -I -L "$YOUTUBE_TEST_URL" | head -n 1)
+echo "YouTube connection test result: $CONNECTABILITY"
+
+# Check if we can reach YouTube with yt-dlp
+echo "Testing yt-dlp YouTube connectivity..."
+/usr/local/bin/yt-dlp --no-check-certificate --skip-download --dump-single-json --no-warnings "$YOUTUBE_TEST_URL" > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+  echo "✅ yt-dlp can successfully connect to YouTube!"
+else
+  echo "❌ yt-dlp failed to connect to YouTube."
+  echo "This may be due to IP blocking, proxy requirements, or network restrictions."
+  echo "Trying with additional options..."
+  
+  # Try with additional options
+  /usr/local/bin/yt-dlp --verbose --no-check-certificate --force-ipv4 --geo-bypass --skip-download --print-traffic "$YOUTUBE_TEST_URL" > /tmp/yt-dlp-test.log 2>&1
+  echo "Debug log from test available at /tmp/yt-dlp-test.log"
 fi
 
 # Ensure correct symlink for node_modules

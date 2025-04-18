@@ -16,6 +16,7 @@ import {
 import { IYoutubeService } from '../interfaces/youtube.interface';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { VideoFallbackService } from './video-fallback.service';
 
 // Promisify exec
 const execPromise = promisify(exec);
@@ -96,6 +97,26 @@ export class YoutubeService implements IYoutubeService {
         throw new AppError(400, 'Invalid URL. Please provide a valid YouTube URL (regular video or shorts).');
       }
 
+      // Extract video ID from URL
+      let videoId = '';
+      if (url.includes('youtube.com/watch?v=')) {
+        const match = url.match(/youtube\.com\/watch\?v=([^&]+)/);
+        videoId = match ? match[1] : '';
+      } else if (url.includes('youtube.com/shorts/')) {
+        const match = url.match(/youtube\.com\/shorts\/([^/?]+)/);
+        videoId = match ? match[1] : '';
+      } else if (url.includes('youtu.be/')) {
+        const match = url.match(/youtu\.be\/([^/?]+)/);
+        videoId = match ? match[1] : '';
+      }
+
+      if (!videoId) {
+        logger.warn(`Could not extract video ID from URL: ${url}`);
+        throw new AppError(400, 'Could not extract video ID from URL. Please provide a valid YouTube URL.');
+      }
+
+      logger.debug(`Extracted video ID: ${videoId}`);
+
       // Path to yt-dlp wrapper script from environment or default
       const ytDlpWrapper = process.env.YT_DLP_WRAPPER || '/usr/local/bin/yt-dlp-wrapper';
       const cookiesPath = '/app/youtube_cookies.txt';
@@ -114,22 +135,65 @@ export class YoutubeService implements IYoutubeService {
 
       logger.debug(`Executing command: ${command}`);
 
-      // Race between the actual command and the timeout
-      const result = await Promise.race([
-        (async () => {
-          try {
-            const { stdout } = await execPromise(command);
-            return JSON.parse(stdout.trim());
-          } catch (error: any) {
-            logger.error(`Error executing yt-dlp command: ${error.message}`);
-            if (error.stderr) {
-              logger.error(`Stderr: ${error.stderr}`);
+      let result: any;
+
+      try {
+        // Race between the actual command and the timeout
+        result = await Promise.race([
+          (async () => {
+            try {
+              const { stdout } = await execPromise(command);
+              return JSON.parse(stdout.trim());
+            } catch (error: any) {
+              logger.error(`Error executing yt-dlp command: ${error.message}`);
+              if (error.stderr) {
+                logger.error(`Stderr: ${error.stderr}`);
+              }
+
+              // Try fallback methods
+              logger.info(`Trying fallback methods for video ID: ${videoId}`);
+
+              // Try Invidious API first
+              const invidiousResult = await VideoFallbackService.getVideoInfoFromInvidious(videoId);
+              if (invidiousResult) {
+                logger.info(`Successfully retrieved video info from Invidious API for ${videoId}`);
+                return invidiousResult;
+              }
+
+              // Try direct scraping as last resort
+              const directResult = await VideoFallbackService.getVideoInfoFromYouTubeDirect(videoId);
+              if (directResult) {
+                logger.info(`Successfully retrieved video info from direct scraping for ${videoId}`);
+                return directResult;
+              }
+
+              throw new Error(`All methods failed to retrieve video info: ${error.message}`);
             }
-            throw new Error(`yt-dlp execution failed: ${error.message}`);
+          })(),
+          timeoutPromise,
+        ]);
+      } catch (err) {
+        logger.error(`Error during video info retrieval: ${err instanceof Error ? err.message : String(err)}`);
+
+        // Try fallback methods outside the race
+        logger.info(`Command failed, trying fallback methods for video ID: ${videoId}`);
+
+        // Try Invidious API
+        const invidiousResult = await VideoFallbackService.getVideoInfoFromInvidious(videoId);
+        if (invidiousResult) {
+          logger.info(`Successfully retrieved video info from Invidious API for ${videoId}`);
+          result = invidiousResult;
+        } else {
+          // Try direct scraping as last resort
+          const directResult = await VideoFallbackService.getVideoInfoFromYouTubeDirect(videoId);
+          if (directResult) {
+            logger.info(`Successfully retrieved video info from direct scraping for ${videoId}`);
+            result = directResult;
+          } else {
+            throw new Error('All methods failed to retrieve video information');
           }
-        })(),
-        timeoutPromise,
-      ]);
+        }
+      }
 
       // Clear the timeout if we got a result
       if (timeoutId) {

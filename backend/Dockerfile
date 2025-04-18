@@ -2,8 +2,8 @@ FROM node:20-alpine as builder
 
 WORKDIR /app
 
-# Install Python and dependencies required for yt-dlp
-RUN apk add --no-cache python3 py3-pip ffmpeg
+# Install required dependencies
+RUN apk add --no-cache ffmpeg curl
 
 # Copy package files
 COPY package*.json ./
@@ -22,13 +22,12 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install Python and dependencies required for building/running
-RUN apk add --no-cache python3 py3-pip ffmpeg
+# Install required dependencies
+RUN apk add --no-cache ffmpeg curl
 
-# Install yt-dlp globally with pip
-RUN python3 -m venv /opt/venv && \
-    /opt/venv/bin/pip install yt-dlp && \
-    ln -s /opt/venv/bin/yt-dlp /usr/local/bin/yt-dlp
+# Download latest yt-dlp and set permissions
+RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
+    && chmod +x /usr/local/bin/yt-dlp
 
 # Copy package files
 COPY package*.json ./
@@ -41,9 +40,6 @@ COPY --from=builder /app/dist ./dist
 
 # Create directories for data and public
 RUN mkdir -p ./data ./public
-
-# Make yt-dlp executable available in PATH
-ENV PATH="/opt/venv/bin:${PATH}"
 
 # Expose port
 EXPOSE 3000

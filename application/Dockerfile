@@ -1,7 +1,11 @@
 FROM node:20-bookworm-slim
 
-# Install ffmpeg
-RUN apt-get update && apt-get install -y ffmpeg && apt-get clean
+# Install ffmpeg and curl
+RUN apt-get update && apt-get install -y ffmpeg curl && apt-get clean
+
+# Download latest yt-dlp and set permissions
+RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
+    && chmod +x /usr/local/bin/yt-dlp
 
 # Set working directory
 WORKDIR /app
@@ -11,10 +15,6 @@ COPY package*.json ./
 
 # Install dependencies
 RUN npm ci
-
-# Copy yt-dlp binary and set permissions
-COPY bin/yt-dlp /usr/local/bin/yt-dlp
-RUN chmod +x /usr/local/bin/yt-dlp
 
 # Copy the rest of the application
 COPY . .

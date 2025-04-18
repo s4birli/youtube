@@ -11,6 +11,10 @@ import path from 'path';
 // Initialize services
 const youtubeService = new YoutubeService();
 
+// Set this environment variable to force use of our wrapper script
+process.env.YT_DLP_EXEC_BINARY = '/usr/local/bin/yt-dlp-wrapper';
+process.env.YT_DLP_PATH = '/usr/local/bin/yt-dlp';
+
 /**
  * Validate request body against a schema
  */

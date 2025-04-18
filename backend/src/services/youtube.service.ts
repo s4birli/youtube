@@ -14,6 +14,11 @@ import {
   ProgressInfo,
 } from '../domain/video';
 import { IYoutubeService } from '../interfaces/youtube.interface';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+// Promisify exec
+const execPromise = promisify(exec);
 
 // Type for download progress tracking
 interface DownloadProgress {
@@ -91,22 +96,38 @@ export class YoutubeService implements IYoutubeService {
         throw new AppError(400, 'Invalid URL. Please provide a valid YouTube URL (regular video or shorts).');
       }
 
+      // Path to yt-dlp wrapper script from environment or default
+      const ytDlpWrapper = process.env.YT_DLP_WRAPPER || '/usr/local/bin/yt-dlp-wrapper';
+      const cookiesPath = '/app/youtube_cookies.txt';
+
       // Create a timeout promise
       const timeoutPromise = new Promise<never>((_, reject) => {
         timeoutId = setTimeout(() => {
-          reject(new Error('YouTube API request timed out after 15 seconds'));
-        }, 15000);
+          reject(new Error('YouTube API request timed out after 30 seconds'));
+        }, 30000); // Increased timeout
       });
 
-      // Race between the actual request and the timeout
+      logger.debug(`Using yt-dlp wrapper: ${ytDlpWrapper}`);
+
+      // Construct command for retrieving video info
+      const command = `${ytDlpWrapper} ${url} --dump-single-json --no-check-certificate --no-warnings --socket-timeout 20 --cookies ${cookiesPath} --force-ipv4 --geo-bypass`;
+
+      logger.debug(`Executing command: ${command}`);
+
+      // Race between the actual command and the timeout
       const result = await Promise.race([
-        ytDlpExec(url, {
-          dumpSingleJson: true,
-          noCheckCertificate: true,
-          noWarnings: true,
-          socketTimeout: 10000,
-          cookies: '/app/youtube_cookies.txt',
-        }),
+        (async () => {
+          try {
+            const { stdout } = await execPromise(command);
+            return JSON.parse(stdout.trim());
+          } catch (error: any) {
+            logger.error(`Error executing yt-dlp command: ${error.message}`);
+            if (error.stderr) {
+              logger.error(`Stderr: ${error.stderr}`);
+            }
+            throw new Error(`yt-dlp execution failed: ${error.message}`);
+          }
+        })(),
         timeoutPromise,
       ]);
 
@@ -141,7 +162,7 @@ export class YoutubeService implements IYoutubeService {
 
       // Check for timeout error
       if (error instanceof Error && error.message.includes('timed out')) {
-        logger.error(error, `YouTube API request timed out for URL: ${url}`);
+        logger.error(`YouTube API request timed out for URL: ${url}: ${error.message}`);
         throw new AppError(504, 'Request to YouTube timed out. Please try again later.');
       }
 
@@ -150,7 +171,7 @@ export class YoutubeService implements IYoutubeService {
         throw error;
       }
 
-      logger.error(error, `Failed to get video info for ${url}`);
+      logger.error(`Failed to get video info for ${url}: ${error instanceof Error ? error.message : String(error)}`);
       throw new AppError(500, 'Failed to get video information. Please try again later.');
     }
   }
@@ -258,39 +279,34 @@ export class YoutubeService implements IYoutubeService {
 
       // Path to downloads subdirectory
       const downloadsDir = path.join(this.downloadDir, 'downloads');
+      await fs.mkdir(downloadsDir, { recursive: true });
 
-      // Create options object for yt-dlp
-      const dlOptions: Record<string, string | boolean | number | string[]> = {
-        output: path.join(downloadsDir, `${outputFilename}.%(ext)s`),
-        noCheckCertificate: true,
-        noWarnings: true,
-        addHeader: ['referer:youtube.com', 'user-agent:Mozilla/5.0'],
-        verbose: true,
-        cookies: '/app/youtube_cookies.txt',
-      };
+      // Path to output file
+      const outputBase = path.join(downloadsDir, outputFilename);
 
-      // Format selection
+      // Path to yt-dlp wrapper script from environment or default
+      const ytDlpWrapper = process.env.YT_DLP_WRAPPER || '/usr/local/bin/yt-dlp-wrapper';
+
+      // Build command arguments
+      let commandArgs = `${videoUrl} --no-check-certificate --verbose --cookies /app/youtube_cookies.txt --force-ipv4 --geo-bypass --output "${outputBase}.%(ext)s"`;
+
+      // Add format selection
       if (formatId && !extractAudio) {
         // Video download with specific format
-        dlOptions.format = `${formatId}+bestaudio/best[ext=mp4]`;
-        dlOptions.mergeOutputFormat = 'mp4';
+        commandArgs += ` --format ${formatId}+bestaudio/best[ext=mp4] --merge-output-format mp4`;
         outputFilename = `${outputFilename}.mp4`;
       } else if (extractAudio) {
         // Audio extraction
-        dlOptions.extractAudio = true;
-        dlOptions.audioFormat = audioFormat || 'mp3';
-        dlOptions.audioQuality = quality ? parseInt(quality, 10) : 0;
+        commandArgs += ` --extract-audio --audio-format ${audioFormat || 'mp3'} --audio-quality ${quality || 0}`;
         contentType = `audio/${audioFormat || 'mp3'}`;
         outputFilename = `${outputFilename}.${audioFormat || 'mp3'}`;
       } else {
         // Default: best video and audio
-        dlOptions.format = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best';
-        dlOptions.mergeOutputFormat = 'mp4';
-        dlOptions.postprocessorArgs = ['FFmpeg:-vcodec h264 -acodec aac'];
+        commandArgs += ` --format "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --merge-output-format mp4`;
         outputFilename = `${outputFilename}.mp4`;
       }
 
-      logger.debug(`yt-dlp options: ${JSON.stringify(dlOptions)}`);
+      logger.debug(`Download command: ${ytDlpWrapper} ${commandArgs}`);
 
       // Set up progress tracking
       downloadProgress.set(downloadId, {
@@ -306,12 +322,9 @@ export class YoutubeService implements IYoutubeService {
       this.activeDownloads++;
 
       try {
-        // Ensure directory exists
-        await fs.mkdir(downloadsDir, { recursive: true });
-
-        // Use yt-dlp directly
-        const result = await ytDlpExec(videoUrl, dlOptions);
-        logger.debug('yt-dlp download result:', result);
+        // Execute the command
+        await execPromise(`${ytDlpWrapper} ${commandArgs}`);
+        logger.debug('Download command completed successfully');
 
         // Update progress to 50% after yt-dlp finishes
         downloadProgress.set(downloadId, {

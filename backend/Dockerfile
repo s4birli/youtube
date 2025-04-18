@@ -5,11 +5,23 @@ WORKDIR /app
 # Install required dependencies including build tools
 RUN apk add --no-cache ffmpeg curl python3 g++ make
 
+# Set npm config for better reliability
+RUN npm config set registry https://registry.npmjs.org/ \
+    && npm config set fetch-retry-mintimeout 20000 \
+    && npm config set fetch-retry-maxtimeout 120000 \
+    && npm config set network-timeout 300000
+
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies with retry logic
+RUN echo "Installing npm dependencies..." && \
+    (npm ci --no-audit --no-fund || \
+    (echo "First attempt failed, retrying..." && \
+    npm cache clean --force && \
+    npm ci --no-audit --no-fund)) || \
+    (echo "Second attempt failed, trying with legacy peer deps..." && \
+    npm ci --no-audit --no-fund --legacy-peer-deps)
 
 # Copy source code
 COPY . .
@@ -30,6 +42,12 @@ RUN ln -sf /usr/bin/python3 /usr/bin/python && \
     python --version && \
     python3 --version
 
+# Set npm config for better reliability
+RUN npm config set registry https://registry.npmjs.org/ \
+    && npm config set fetch-retry-mintimeout 20000 \
+    && npm config set fetch-retry-maxtimeout 120000 \
+    && npm config set network-timeout 300000
+
 # Download latest yt-dlp and set permissions
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
     && chmod a+rx /usr/local/bin/yt-dlp \
@@ -45,8 +63,14 @@ RUN /usr/local/bin/yt-dlp --no-check-certificate --dump-user-agent
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only and skip all scripts
-RUN npm ci --omit=dev --ignore-scripts
+# Install production dependencies only with improved reliability
+RUN echo "Installing production dependencies..." && \
+    (npm ci --omit=dev --ignore-scripts --no-audit --no-fund || \
+    (echo "First attempt failed, retrying..." && \
+    npm cache clean --force && \
+    npm ci --omit=dev --ignore-scripts --no-audit --no-fund)) || \
+    (echo "Second attempt failed, trying with legacy peer deps..." && \
+    npm ci --omit=dev --ignore-scripts --no-audit --no-fund --legacy-peer-deps)
 
 # Copy built app from builder stage
 COPY --from=builder /app/dist ./dist
@@ -54,7 +78,7 @@ COPY --from=builder /app/dist ./dist
 # Copy the scripts directory for our helper scripts
 COPY src/scripts /app/scripts
 # Make scripts executable
-RUN chmod +x /app/scripts/*.sh /app/scripts/*.js
+RUN chmod +x /app/scripts/*.sh /app/scripts/*.js || echo "Some scripts might not be executable"
 
 # Copy the yt-dlp wrapper script
 COPY src/scripts/yt-dlp-wrapper.sh /usr/local/bin/yt-dlp-wrapper

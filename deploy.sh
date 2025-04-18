@@ -9,6 +9,22 @@ if [ -d ".git" ]; then
   git pull
 fi
 
+# Install dependencies in backend folder (helps resolve dependency issues)
+echo "📦 Installing backend dependencies locally..."
+if [ -f "backend/package.json" ]; then
+  cd backend
+  npm install --no-fund --no-audit
+  cd ..
+fi
+
+# Install dependencies in application folder if it exists
+echo "📦 Installing application dependencies locally..."
+if [ -f "application/package.json" ]; then
+  cd application
+  npm install --no-fund --no-audit
+  cd ..
+fi
+
 # Build and start containers with memory limits
 echo "🔨 Building and starting containers..."
 docker-compose down

@@ -2,6 +2,15 @@ import axios from 'axios';
 import { VideoInfo } from '../domain/video';
 import { logger } from '../config/logger';
 
+// Define interface for video thumbnails
+interface VideoThumbnail {
+    url: string;
+    width?: number;
+    height?: number;
+    resolution?: string;
+    preference?: number;
+}
+
 /**
  * Fallback service to get video information when yt-dlp fails
  * This uses direct HTTP calls and various APIs
@@ -42,6 +51,12 @@ export class VideoFallbackService {
                         // Transform to our VideoInfo format
                         const invidiousData = response.data;
 
+                        const thumbnails: VideoThumbnail[] = invidiousData.videoThumbnails?.map((thumb: any) => ({
+                            url: thumb.url,
+                            height: thumb.height,
+                            width: thumb.width
+                        })) || [];
+
                         const videoInfo: Partial<VideoInfo> = {
                             id: invidiousData.videoId,
                             title: invidiousData.title,
@@ -51,13 +66,8 @@ export class VideoFallbackService {
                             upload_date: invidiousData.publishedText,
                             uploader: invidiousData.author,
                             view_count: invidiousData.viewCount,
-                            thumbnails: invidiousData.videoThumbnails?.map((thumb: any) => ({
-                                url: thumb.url,
-                                height: thumb.height,
-                                width: thumb.width
-                            })) || [],
+                            thumbnails: thumbnails,
                             formats: [],
-                            // Add other fields as needed
                         };
 
                         return videoInfo as VideoInfo;
@@ -101,26 +111,27 @@ export class VideoFallbackService {
                 const titleMatch = html.match(/<title>([^<]*)<\/title>/);
                 let title = titleMatch ? titleMatch[1].replace(' - YouTube', '') : 'Unknown Title';
 
+                // Create thumbnails for direct scraping
+                const thumbnails: VideoThumbnail[] = [
+                    {
+                        url: `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
+                        height: 720,
+                        width: 1280
+                    },
+                    {
+                        url: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+                        height: 360,
+                        width: 480
+                    }
+                ];
+
                 // Basic videoInfo with limited information
                 const videoInfo: Partial<VideoInfo> = {
                     id: videoId,
                     title: title,
                     webpage_url: url,
                     formats: [],
-                    thumbnails: [
-                        {
-                            url: `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
-                            id: 'maxresdefault',
-                            height: 720,
-                            width: 1280
-                        },
-                        {
-                            url: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-                            id: 'hqdefault',
-                            height: 360,
-                            width: 480
-                        }
-                    ]
+                    thumbnails: thumbnails
                 };
 
                 logger.info(`Successfully retrieved basic info through direct scraping for video ${videoId}`);

@@ -9,20 +9,26 @@ if [ -d ".git" ]; then
   git pull
 fi
 
-# Install dependencies in backend folder (helps resolve dependency issues)
-echo "📦 Installing backend dependencies locally..."
-if [ -f "backend/package.json" ]; then
-  cd backend
-  npm install --no-fund --no-audit
-  cd ..
-fi
+# Check if npm is available
+if command -v npm &> /dev/null; then
+  # Install dependencies in backend folder (helps resolve dependency issues)
+  echo "📦 Installing backend dependencies locally..."
+  if [ -f "backend/package.json" ]; then
+    cd backend
+    npm install --no-fund --no-audit
+    cd ..
+  fi
 
-# Install dependencies in application folder if it exists
-echo "📦 Installing application dependencies locally..."
-if [ -f "application/package.json" ]; then
-  cd application
-  npm install --no-fund --no-audit
-  cd ..
+  # Install dependencies in application folder if it exists
+  echo "📦 Installing application dependencies locally..."
+  if [ -f "application/package.json" ]; then
+    cd application
+    npm install --no-fund --no-audit
+    cd ..
+  fi
+else
+  echo "⚠️ npm not found on this system. Skipping local dependency installation."
+  echo "ℹ️ This is fine since Docker will handle dependencies during the build."
 fi
 
 # Build and start containers with memory limits

@@ -2,8 +2,8 @@ FROM node:20-alpine as builder
 
 WORKDIR /app
 
-# Install required dependencies
-RUN apk add --no-cache ffmpeg curl
+# Install required dependencies including build tools
+RUN apk add --no-cache ffmpeg curl python3 g++ make
 
 # Copy package files
 COPY package*.json ./

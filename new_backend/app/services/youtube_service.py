@@ -95,7 +95,8 @@ class YouTubeService:
                     'player_skip': ['webpage', 'configs', 'js'],
                     'skip': ['hls', 'dash', 'translated_subs'],
                     'visitor_data': [visitor_data],
-                    'comment_threads': ['0']
+                    'comment_threads': ['0'],
+                    'player_client': ['tv']  # Use TV client which doesn't require PO token
                 }
             },
             
@@ -164,19 +165,80 @@ class YouTubeService:
         """
         if not cls.validate_youtube_url(url):
             raise ValueError("Invalid YouTube URL")
-            
+        
+        # List of clients to try in order of preference (clients that don't need PO tokens)
+        clients_to_try = ['tv', 'tv_embedded', 'web_embedded', 'android_vr']
+        
         # Use yt-dlp to extract video information
-        options = cls._get_yt_dlp_options({
+        base_options = {
             'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
             'simulate': True,
             'dump_single_json': True,
-        })
+        }
         
+        last_error = None
+        
+        # Try each client until one works
+        for client in clients_to_try:
+            try:
+                options = cls._get_yt_dlp_options(base_options)
+                
+                # Set the client for this attempt
+                if 'extractor_args' not in options:
+                    options['extractor_args'] = {}
+                if 'youtube' not in options['extractor_args']:
+                    options['extractor_args']['youtube'] = {}
+                    
+                options['extractor_args']['youtube']['player_client'] = [client]
+                
+                loop = asyncio.get_event_loop()
+                with yt_dlp.YoutubeDL(options) as ydl:
+                    # Run yt-dlp info extraction in a separate thread to avoid blocking
+                    logger.info(f"Fetching video info for {url} using client {client}")
+                    info = await loop.run_in_executor(None, ydl.extract_info, url, False)
+                    
+                # Filter and format the info
+                formats = cls._filter_formats(info.get('formats', []))
+                
+                # Prepare response with required video information
+                video_info = {
+                    'id': info.get('id'),
+                    'title': info.get('title'),
+                    'thumbnail': info.get('thumbnail'),
+                    'duration': info.get('duration'),
+                    'uploader': info.get('uploader'),
+                    'formats': formats,
+                    'has_audio_only': any(f.get('acodec') != 'none' and f.get('vcodec') == 'none' for f in info.get('formats', [])),
+                }
+                
+                return video_info
+                
+            except yt_dlp.utils.DownloadError as e:
+                last_error = str(e)
+                logger.error(f"Error extracting video info with client {client}: {last_error}")
+                continue  # Try next client
+        
+        # If we get here, all clients failed
+        logger.error(f"Error extracting video info: {last_error}")
+        
+        # Try with fallback options
         try:
+            logger.info(f"Retrying with fallback options for {url}")
+            fallback_options = cls._get_yt_dlp_options({
+                'format': 'best[height<=1080]/best',
+                'simulate': True,
+                'dump_single_json': True,
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['tv_embedded'],
+                        'skip': [],  # Don't skip anything in fallback mode
+                        'player_skip': []
+                    }
+                }
+            })
+            
             loop = asyncio.get_event_loop()
-            with yt_dlp.YoutubeDL(options) as ydl:
-                # Run yt-dlp info extraction in a separate thread to avoid blocking
-                logger.info(f"Fetching video info for {url}")
+            with yt_dlp.YoutubeDL(fallback_options) as ydl:
                 info = await loop.run_in_executor(None, ydl.extract_info, url, False)
                 
             # Filter and format the info
@@ -195,48 +257,9 @@ class YouTubeService:
             
             return video_info
             
-        except yt_dlp.utils.DownloadError as e:
-            logger.error(f"Error extracting video info: {str(e)}")
-            
-            # Try with a different set of options if the first attempt fails
-            try:
-                # Fallback options with more aggressive bypassing
-                fallback_options = cls._get_yt_dlp_options({
-                    'format': 'best',
-                    'simulate': True,
-                    'dump_single_json': True,
-                    'skip_download': True,
-                    'youtube_include_dash_manifest': False,
-                    'youtube_include_hls_manifest': False,
-                })
-                
-                logger.info(f"Retrying with fallback options for {url}")
-                with yt_dlp.YoutubeDL(fallback_options) as ydl:
-                    info = await loop.run_in_executor(None, ydl.extract_info, url, False)
-                
-                # Filter and format the info
-                formats = cls._filter_formats(info.get('formats', []))
-                
-                # Prepare response with required video information
-                video_info = {
-                    'id': info.get('id'),
-                    'title': info.get('title'),
-                    'thumbnail': info.get('thumbnail'),
-                    'duration': info.get('duration'),
-                    'uploader': info.get('uploader'),
-                    'formats': formats,
-                    'has_audio_only': any(f.get('acodec') != 'none' and f.get('vcodec') == 'none' for f in info.get('formats', [])),
-                }
-                
-                return video_info
-                
-            except Exception as fallback_error:
-                logger.error(f"Fallback method also failed: {str(fallback_error)}")
-                raise ValueError(f"Failed to extract video info even with fallback method. Try again later or with a different video.")
-                
         except Exception as e:
-            logger.error(f"Error extracting video info: {str(e)}")
-            raise ValueError(f"Failed to extract video info: {str(e)}")
+            logger.error(f"Fallback method also failed: {str(e)}")
+            raise ValueError(f"Failed to extract video info even with fallback method. Try again later or with a different video.")
     
     @staticmethod
     def _filter_formats(formats: List[Dict]) -> List[Dict]:
@@ -393,84 +416,128 @@ class YouTubeService:
                 'preferedformat': 'mp4',
             })
         
-        # Set up yt-dlp options for download
-        options = cls._get_yt_dlp_options({
-            'format': format_spec,
-            'outtmpl': output_path,
-            'noplaylist': True, 
-            'writethumbnail': False,
-            'merge_output_format': 'mp4',  # Force MP4 as output container
-            'postprocessors': postprocessors,
-        })
+        # List of clients to try in order of preference (clients that don't need PO tokens)
+        clients_to_try = ['tv', 'tv_embedded', 'web_embedded', 'android_vr']
         
-        try:
-            logger.info(f"Downloading video: {video_title}")
-            
-            # Run download in executor to avoid blocking
-            loop = asyncio.get_event_loop()
-            with yt_dlp.YoutubeDL(options) as ydl:
-                await loop.run_in_executor(None, ydl.download, [url])
-            
-            # Verify file exists
-            if not os.path.exists(output_path):
-                logger.error(f"File not found after download: {output_path}")
-                
-                # Try with a fallback approach if first download failed
-                logger.info("Trying fallback download approach...")
-                
-                # Different options for fallback
-                fallback_options = cls._get_yt_dlp_options({
-                    'format': 'best' if audio_only else 'best[height<=1080]',
+        # Downloads don't always use the same client that worked for info extraction
+        # so we should try multiple clients here as well
+        last_error = None
+        
+        for client in clients_to_try:
+            try:
+                # Set up yt-dlp options for download
+                options = cls._get_yt_dlp_options({
+                    'format': format_spec,
                     'outtmpl': output_path,
+                    'noplaylist': True, 
+                    'writethumbnail': False,
+                    'merge_output_format': 'mp4',  # Force MP4 as output container
                     'postprocessors': postprocessors,
-                    'noplaylist': True,
-                    'merge_output_format': 'mp4',
+                    'extractor_args': {
+                        'youtube': {
+                            'player_client': [client]
+                        }
+                    }
                 })
                 
-                with yt_dlp.YoutubeDL(fallback_options) as ydl:
+                logger.info(f"Downloading video with client {client}: {video_title}")
+                
+                # Run download in executor to avoid blocking
+                loop = asyncio.get_event_loop()
+                with yt_dlp.YoutubeDL(options) as ydl:
                     await loop.run_in_executor(None, ydl.download, [url])
                 
-                # Search for files that might have been created with a different naming pattern
-                if not os.path.exists(output_path):
-                    download_dir = Path(settings.DOWNLOAD_PATH)
-                    found_files = list(download_dir.glob(f"{unique_id}*"))
+                # If download was successful and file exists, register it and return
+                if os.path.exists(output_path):
+                    # Register the file in file manager
+                    file_type = 'audio' if audio_only else 'video'
+                    file_info = FileManager.register_file(
+                        unique_filename,
+                        output_template,
+                        file_type
+                    )
                     
-                    if found_files:
-                        # Use the first file that matches the pattern
-                        actual_file = str(found_files[0])
-                        logger.info(f"Found alternative file: {actual_file}")
-                        # If the file has a different extension, update the filename
-                        unique_filename = os.path.basename(actual_file)
-                        output_path = actual_file
-                        
-                        # If it's not an MP4 file, try to convert it
-                        if not unique_filename.endswith('.mp4') and not audio_only:
-                            try:
-                                mp4_filename = f"{unique_id}.mp4"
-                                mp4_path = str(Path(settings.DOWNLOAD_PATH) / mp4_filename)
-                                
-                                logger.info(f"Converting {actual_file} to MP4: {mp4_path}")
-                                
-                                # Use ffmpeg to convert to MP4
-                                (
-                                    ffmpeg
-                                    .input(actual_file)
-                                    .output(mp4_path, vcodec='libx264', acodec='aac', strict='experimental')
-                                    .run(overwrite_output=True, quiet=True)
-                                )
-                                
-                                # Update path if conversion successful
-                                if os.path.exists(mp4_path):
-                                    unique_filename = mp4_filename
-                                    output_path = mp4_path
-                                    logger.info(f"Successfully converted to MP4: {mp4_path}")
-                            except Exception as e:
-                                logger.error(f"Error converting to MP4: {str(e)}")
-                    else:
-                        # Search for any recently created files
-                        all_files = os.listdir(settings.DOWNLOAD_PATH)
-                        logger.info(f"All files in download directory: {all_files}")
-                        raise ValueError(f"Download failed: No output file found in {settings.DOWNLOAD_PATH}")
+                    logger.info(f"Download completed with client {client}: {output_path}")
+                    return file_info
+                else:
+                    logger.error(f"File not found after download with client {client}: {output_path}")
+                    
+            except Exception as e:
+                last_error = str(e)
+                logger.error(f"Error downloading with client {client}: {last_error}")
+                
+                # Try to clean up any partial downloads
+                try:
+                    if os.path.exists(output_path):
+                        os.remove(output_path)
+                except Exception as ex:
+                    logger.error(f"Error cleaning up file: {str(ex)}")
+        
+        # If all clients failed, try with fallback approach
+        try:
+            logger.info("Trying fallback download approach...")
+            
+            # Different options for fallback
+            fallback_options = cls._get_yt_dlp_options({
+                'format': 'best' if audio_only else 'best[height<=1080]',
+                'outtmpl': output_path,
+                'postprocessors': postprocessors,
+                'noplaylist': True,
+                'merge_output_format': 'mp4',
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['tv_embedded'],
+                        'skip': [],  # Don't skip anything in fallback mode
+                        'player_skip': []
+                    }
+                }
+            })
+            
+            loop = asyncio.get_event_loop()
+            with yt_dlp.YoutubeDL(fallback_options) as ydl:
+                await loop.run_in_executor(None, ydl.download, [url])
+            
+            # Search for files that might have been created with a different naming pattern
+            if not os.path.exists(output_path):
+                download_dir = Path(settings.DOWNLOAD_PATH)
+                found_files = list(download_dir.glob(f"{unique_id}*"))
+                
+                if found_files:
+                    # Use the first file that matches the pattern
+                    actual_file = str(found_files[0])
+                    logger.info(f"Found alternative file: {actual_file}")
+                    # If the file has a different extension, update the filename
+                    unique_filename = os.path.basename(actual_file)
+                    output_path = actual_file
+                    
+                    # If it's not an MP4 file, try to convert it
+                    if not unique_filename.endswith('.mp4') and not audio_only:
+                        try:
+                            mp4_filename = f"{unique_id}.mp4"
+                            mp4_path = str(Path(settings.DOWNLOAD_PATH) / mp4_filename)
+                            
+                            logger.info(f"Converting {actual_file} to MP4: {mp4_path}")
+                            
+                            # Use ffmpeg to convert to MP4
+                            (
+                                ffmpeg
+                                .input(actual_file)
+                                .output(mp4_path, vcodec='libx264', acodec='aac', strict='experimental')
+                                .run(overwrite_output=True, quiet=True)
+                            )
+                            
+                            # Update path if conversion successful
+                            if os.path.exists(mp4_path):
+                                unique_filename = mp4_filename
+                                output_path = mp4_path
+                                logger.info(f"Successfully converted to MP4: {mp4_path}")
+                        except Exception as e:
+                            logger.error(f"Error converting to MP4: {str(e)}")
+                else:
+                    # Search for any recently created files
+                    all_files = os.listdir(settings.DOWNLOAD_PATH)
+                    logger.info(f"All files in download directory: {all_files}")
+                    raise ValueError(f"Download failed: No output file found in {settings.DOWNLOAD_PATH}")
             
             # Register the file in file manager
             file_type = 'audio' if audio_only else 'video'
@@ -480,7 +547,7 @@ class YouTubeService:
                 file_type
             )
             
-            logger.info(f"Download completed: {output_path}, file exists: {os.path.exists(output_path)}")
+            logger.info(f"Download completed with fallback: {output_path}, file exists: {os.path.exists(output_path)}")
             
             # Double check to make sure file exists
             if not os.path.exists(output_path):

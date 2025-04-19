@@ -97,3 +97,31 @@ If you encounter the "Sign in to confirm you're not a bot" error:
 ## License
 
 MIT License
+
+## YouTube Downloader Fix - Recent Update
+
+### Issue Fixed
+Fixed the YouTube video download functionality that was failing with the error: 
+```
+Failed to extract any player response; please report this issue on https://github.com/yt-dlp/yt-dlp/issues
+```
+
+### Changes Made
+1. Updated yt-dlp to version 2023.12.30 or later in requirements.txt
+2. Modified the YouTube service to use client types that don't require PO tokens:
+   - Added support for multiple client types ('tv', 'tv_embedded', 'web_embedded', 'android_vr')
+   - Implemented a fallback mechanism to try different clients if one fails
+3. Updated the Docker configuration to mount the cookies file directly into the container
+4. Improved error handling and logging for better debugging
+
+### How to Deploy the Fix
+Run the rebuild script to apply changes:
+```bash
+./rebuild_and_restart.sh
+```
+
+### Additional Notes
+- YouTube has recently started requiring PO tokens for some client types
+- This fix uses alternative clients that currently don't require these tokens
+- If issues persist, you may need to update your cookies file with fresh cookies from a browser
+- More information about YouTube PO tokens: https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide

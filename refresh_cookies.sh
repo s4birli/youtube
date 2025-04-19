@@ -11,13 +11,17 @@ NC='\033[0m' # No Color
 echo -e "${GREEN}===== YouTube Cookie Refresher =====${NC}"
 echo "This script will help you export fresh cookies from your browser"
 
+# Define the full path to yt-dlp
+YTDLP_BIN="$HOME/.local/bin/yt-dlp"
+
 # Define cookie file path
 COOKIE_FILE="netscape_cookies.txt"
 
 # Check for yt-dlp availability
-if ! command -v yt-dlp &> /dev/null; then
-    echo -e "${RED}Error: yt-dlp not found. Please install it first.${NC}"
-    echo "Run: pip install yt-dlp"
+if [ ! -x "$YTDLP_BIN" ]; then
+    echo -e "${RED}Error: yt-dlp not found at $YTDLP_BIN${NC}"
+    echo "Try running: pip install yt-dlp --user"
+    echo "Or add this to your .bashrc: export PATH=\"\$HOME/.local/bin:\$PATH\""
     exit 1
 fi
 
@@ -55,7 +59,7 @@ echo -e "\nPress Enter to continue..."
 read -r
 
 echo -e "\n${GREEN}Extracting cookies from $browser...${NC}"
-yt-dlp --cookies-from-browser "$browser" --cookies "$COOKIE_FILE" -v
+"$YTDLP_BIN" --cookies-from-browser "$browser" --cookies "$COOKIE_FILE" -v
 
 # Check if cookie file was created and has content
 if [ -f "$COOKIE_FILE" ] && [ -s "$COOKIE_FILE" ]; then

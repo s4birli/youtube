@@ -107,21 +107,31 @@ Failed to extract any player response; please report this issue on https://githu
 ```
 
 ### Changes Made
-1. Updated yt-dlp to version 2023.12.30 or later in requirements.txt
-2. Modified the YouTube service to use client types that don't require PO tokens:
-   - Added support for multiple client types ('tv', 'tv_embedded', 'web_embedded', 'android_vr')
-   - Implemented a fallback mechanism to try different clients if one fails
-3. Updated the Docker configuration to mount the cookies file directly into the container
-4. Improved error handling and logging for better debugging
+1. Updated yt-dlp to the latest version (2025.03.31)
+2. Implemented PO Token plugin support:
+   - Added yt-dlp-get-pot plugin framework
+   - Added bgutil-ytdlp-pot-provider as the PO token provider
+   - Modified the YouTube service to use web client with PO tokens
+3. Enhanced fallback mechanisms:
+   - Expanded client types list for more fallback options
+   - Added verbose debugging in fallback mode
+   - Improved error handling and logging
 
 ### How to Deploy the Fix
-Run the rebuild script to apply changes:
+Run the provided installation script:
 ```bash
-./rebuild_and_restart.sh
+chmod +x install_pot_plugin.sh
+./install_pot_plugin.sh
 ```
 
-### Additional Notes
-- YouTube has recently started requiring PO tokens for some client types
-- This fix uses alternative clients that currently don't require these tokens
-- If issues persist, you may need to update your cookies file with fresh cookies from a browser
-- More information about YouTube PO tokens: https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide
+### What are PO Tokens?
+PO (Proof of Origin) Tokens are now required by YouTube for video playback on most clients. These tokens verify that the request comes from a genuine client. Our solution uses the bgutil-ytdlp-pot-provider plugin to automatically generate these tokens when needed.
+
+### Troubleshooting
+If you still experience issues:
+1. Make sure cookies are fresh and working
+2. Try different video URLs for testing
+3. Check the Docker logs for specific errors
+4. Ensure network connectivity to YouTube is not blocked by firewalls
+
+For more information about YouTube PO tokens: https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide

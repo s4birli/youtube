@@ -63,16 +63,31 @@ if [ -f "$COOKIE_FILE" ] && [ -s "$COOKIE_FILE" ]; then
     echo "Cookie file size: $(wc -c < "$COOKIE_FILE") bytes"
     echo "Number of cookies: $(grep -v "^#" "$COOKIE_FILE" | wc -l)"
     
+    # Make sure data directory exists
+    mkdir -p new_backend/app/data
+    
+    # Copy to the data directory for build process
+    echo "Copying cookies to app data directory..."
+    cp "$COOKIE_FILE" new_backend/app/data/
+    
     # Backup old cookie file in the container if it exists
     echo -e "\n${GREEN}Updating cookies in the Docker container...${NC}"
-    if docker-compose exec backend test -f /app/app/data/netscape_cookies.txt; then
-        echo "Backing up existing cookies in container..."
-        docker-compose exec backend cp /app/app/data/netscape_cookies.txt /app/app/data/netscape_cookies.txt.bak
+    if docker ps | grep -q youtube-fastapi-backend; then
+        if docker-compose exec -T backend test -f /app/app/data/netscape_cookies.txt; then
+            echo "Backing up existing cookies in container..."
+            docker-compose exec -T backend cp /app/app/data/netscape_cookies.txt /app/app/data/netscape_cookies.txt.bak
+        fi
+        
+        # Copy new cookies to container
+        echo "Copying new cookies to container..."
+        docker cp "$COOKIE_FILE" youtube-fastapi-backend:/app/app/data/netscape_cookies.txt
+        
+        # Restart container to pick up new cookies
+        echo "Restarting container to apply new cookies..."
+        docker-compose restart backend
+    else
+        echo "Docker container not running. The cookies will be used next time you start the container."
     fi
-    
-    # Copy new cookies to container
-    echo "Copying new cookies to container..."
-    docker cp "$COOKIE_FILE" youtube-fastapi-backend:/app/app/data/netscape_cookies.txt
     
     echo -e "\n${GREEN}All done! Try downloading a video now.${NC}"
 else
@@ -88,6 +103,6 @@ fi
 
 # Suggest next steps
 echo -e "\n${GREEN}Next steps:${NC}"
-echo "1. Restart the backend service: docker-compose restart backend"
-echo "2. Test downloading a video using the API endpoint"
-echo "3. If issues persist, try another browser or check for YouTube region restrictions" 
+echo "1. Test downloading a video using the API endpoint"
+echo "2. If issues persist, try another browser or check for YouTube region restrictions"
+echo "3. You can also try downloading a different video - some videos are region-restricted" 

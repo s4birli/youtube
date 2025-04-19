@@ -2,9 +2,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install FFmpeg, curl, Node.js, and npm
+# Install FFmpeg, curl, Node.js, npm, and git
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg curl gnupg && \
+    apt-get install -y --no-install-recommends ffmpeg curl gnupg git && \
     # Install Node.js 18.x
     mkdir -p /etc/apt/keyrings && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
@@ -31,15 +31,12 @@ RUN cd /root && \
 # Copy application code
 COPY . /app/
 
-# Create directory for downloads
-RUN mkdir -p /app/downloads && \
-    chmod 777 /app/downloads
-
-# Copy the cookies file into the container
-COPY netscape_cookies.txt /app/app/data/netscape_cookies.txt
+# Create directory for downloads and data directory
+RUN mkdir -p /app/downloads /app/app/data && \
+    chmod 777 /app/downloads /app/app/data
 
 # Initialize BgUtil server on startup
-RUN echo '#!/bin/bash\ncd /root/bgutil-ytdlp-pot-provider && npm run server &\nuvicorn app.main:app --host 0.0.0.0 --port 8000' > /app/start.sh && \
+RUN echo '#!/bin/bash\n\n# Start BgUtil server\ncd /root/bgutil-ytdlp-pot-provider && npm run server &\n\n# Wait a moment for the server to start\nsleep 3\n\n# Display server process\necho "BgUtil server started:"\nps aux | grep bgutil\n\n# Start FastAPI application\necho "Starting FastAPI application..."\nuvicorn app.main:app --host 0.0.0.0 --port 8000' > /app/start.sh && \
     chmod +x /app/start.sh
 
 # Environment variables
@@ -50,7 +47,7 @@ ENV API_V1_STR=/api/v1
 ENV PROJECT_NAME="YouTube Downloader API"
 ENV MAX_RESOLUTION=1080p
 ENV FILE_EXPIRY_SECONDS=300
-ENV DEBUG=false
+ENV DEBUG=true
 
 # Command to run the application
 CMD ["/app/start.sh"] 

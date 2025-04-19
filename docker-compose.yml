@@ -4,8 +4,8 @@ services:
   # Python FastAPI Backend service
   backend:
     build:
-      context: .
-      dockerfile: new_backend/Dockerfile
+      context: ./new_backend
+      dockerfile: Dockerfile
       network: host
       args:
         BUILDKIT_INLINE_CACHE: 1

@@ -24,7 +24,6 @@ services:
       - DEBUG=false
     volumes:
       - backend_downloads:/app/downloads
-      - ./youtube_cookies.txt:/app/youtube_cookies.txt
     deploy:
       resources:
         limits:

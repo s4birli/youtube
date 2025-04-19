@@ -37,31 +37,15 @@ class YouTubeService:
         Returns:
             Dict of yt-dlp options
         """
-        # Determine cookies file path
-        cookies_path = "/app/youtube_cookies.txt"  # Path in Docker container
-        fallback_cookies_path = "/app/data/youtube_cookies.txt"  # Alternative path
-        
-        # Check if cookies file exists
-        cookies_available = False
-        if os.path.exists(cookies_path):
-            logger.info(f"Using cookies file at {cookies_path}")
-            cookies_available = True
-        elif os.path.exists(fallback_cookies_path):
-            cookies_path = fallback_cookies_path
-            logger.info(f"Using fallback cookies file at {fallback_cookies_path}")
-            cookies_available = True
-        else:
-            # Try to find cookies file in root directory or parent directories
-            logger.warning("Cookies file not found at default locations. Searching for cookies file...")
-            for search_path in ["/app", "/", "../", "../../", "/youtube"]:
-                potential_path = os.path.join(search_path, "youtube_cookies.txt")
-                if os.path.exists(potential_path):
-                    cookies_path = potential_path
-                    logger.info(f"Found cookies file at {cookies_path}")
-                    cookies_available = True
-                    break
-            else:
-                logger.warning("No cookies file found! Will try alternative authentication methods.")
+        # Default values for visitor data approach
+        VISITOR_DATA = "CgtTSzFGVndwTjJvayiO6LCcBg%3D%3D"
+        EXTRACTOR_ARGS = {
+            'youtubetab': {'skip': ['webpage']},
+            'youtube': {
+                'player_skip': ['webpage', 'configs'],
+                'visitor_data': [VISITOR_DATA]
+            }
+        }
         
         # Default options to avoid throttling and mimic browser behavior
         default_options = {
@@ -70,31 +54,14 @@ class YouTubeService:
             'nocheckcertificate': True,
         }
         
-        # Authentication approach decision
-        if cookies_available:
-            # Use cookies-based authentication
-            default_options['cookiefile'] = cookies_path
-            logger.info("Using cookies-based authentication")
-        else:
-            # Use visitor data approach as fallback
-            # This is alternative to cookies but less stable according to yt-dlp docs
-            logger.info("Using visitor data approach as fallback authentication")
-            
-            # Generic visitor data (may need to be refreshed occasionally)
-            visitor_data = "CgtTSzFGVndwTjJvayiO6LCcBg%3D%3D"
-            
-            default_options['extractor_args'] = {
-                'youtubetab': {'skip': ['webpage']},
-                'youtube': {
-                    'player_skip': ['webpage', 'configs'],
-                    'visitor_data': [visitor_data]
-                }
-            }
+        # Force visitor data approach (no cookies)
+        logger.info("Using visitor data approach (no cookies)")
+        default_options['extractor_args'] = EXTRACTOR_ARGS
         
         # Add browser-like headers to avoid detection
         default_options['http_headers'] = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-                          '(KHTML, like Gecko) Chrome/93.0.4577.82 Safari/537.36',
+                        '(KHTML, like Gecko) Chrome/93.0.4577.82 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
             'Accept-Encoding': 'gzip, deflate',

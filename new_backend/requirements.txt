@@ -8,4 +8,6 @@ ffmpeg-python>=0.2.0
 python-dotenv>=1.0.0
 aiofiles>=23.1.0
 pytest>=7.4.0
-httpx>=0.24.1 
+httpx>=0.24.1
+yt-dlp-get-pot>=0.4.0
+bgutil-ytdlp-pot-provider>=0.2.0 

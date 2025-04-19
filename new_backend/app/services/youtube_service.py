@@ -13,6 +13,21 @@ import logging
 import yt_dlp
 import ffmpeg
 
+# Import the PO Token plugin
+try:
+    import yt_dlp_get_pot
+    from bgutil_ytdlp_pot_provider import BgutilPotProvider
+    
+    # Initialize the PO Token plugin with the BgutilPotProvider
+    pot_available = True
+    yt_dlp_get_pot.register(BgutilPotProvider())
+    logger = logging.getLogger(__name__)
+    logger.info("PO Token plugin successfully loaded")
+except ImportError:
+    pot_available = False
+    logger = logging.getLogger(__name__)
+    logger.warning("PO Token plugin not available. Some YouTube videos may fail to download.")
+
 from app.core.config import settings
 from app.utils.file_manager import FileManager
 
@@ -96,7 +111,8 @@ class YouTubeService:
                     'skip': ['hls', 'dash', 'translated_subs'],
                     'visitor_data': [visitor_data],
                     'comment_threads': ['0'],
-                    'player_client': ['tv']  # Use TV client which doesn't require PO token
+                    # Use web client if PO Token plugin is available, otherwise use tv client
+                    'player_client': ['web' if pot_available else 'tv']
                 }
             },
             
@@ -166,15 +182,54 @@ class YouTubeService:
         if not cls.validate_youtube_url(url):
             raise ValueError("Invalid YouTube URL")
         
-        # List of clients to try in order of preference (clients that don't need PO tokens)
-        clients_to_try = ['tv', 'tv_embedded', 'web_embedded', 'android_vr']
-        
-        # Use yt-dlp to extract video information
+        # Base options for video info extraction
         base_options = {
             'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
             'simulate': True,
             'dump_single_json': True,
         }
+
+        # If PO Token plugin is available, try with web client first
+        if pot_available:
+            try:
+                options = cls._get_yt_dlp_options(base_options)
+                
+                # Make sure we're using the web client with PO Token
+                if 'extractor_args' not in options:
+                    options['extractor_args'] = {}
+                if 'youtube' not in options['extractor_args']:
+                    options['extractor_args']['youtube'] = {}
+                    
+                options['extractor_args']['youtube']['player_client'] = ['web']
+                
+                loop = asyncio.get_event_loop()
+                with yt_dlp.YoutubeDL(options) as ydl:
+                    # Run yt-dlp info extraction in a separate thread to avoid blocking
+                    logger.info(f"Fetching video info for {url} using web client with PO Token")
+                    info = await loop.run_in_executor(None, ydl.extract_info, url, False)
+                    
+                # Filter and format the info
+                formats = cls._filter_formats(info.get('formats', []))
+                
+                # Prepare response with required video information
+                video_info = {
+                    'id': info.get('id'),
+                    'title': info.get('title'),
+                    'thumbnail': info.get('thumbnail'),
+                    'duration': info.get('duration'),
+                    'uploader': info.get('uploader'),
+                    'formats': formats,
+                    'has_audio_only': any(f.get('acodec') != 'none' and f.get('vcodec') == 'none' for f in info.get('formats', [])),
+                }
+                
+                return video_info
+                
+            except yt_dlp.utils.DownloadError as e:
+                logger.error(f"Error extracting video info with web client and PO Token: {str(e)}")
+                # Continue to fallback methods
+        
+        # List of clients to try in order of preference (clients that might not need PO tokens)
+        clients_to_try = ['tv', 'tv_embedded', 'web_embedded', 'android_vr', 'android', 'ios', 'mweb']
         
         last_error = None
         
@@ -221,21 +276,24 @@ class YouTubeService:
         # If we get here, all clients failed
         logger.error(f"Error extracting video info: {last_error}")
         
-        # Try with fallback options
+        # Try with a different approach as fallback
         try:
             logger.info(f"Retrying with fallback options for {url}")
-            fallback_options = cls._get_yt_dlp_options({
+            
+            # Create a fallback with minimal options and no skips
+            fallback_options = {
                 'format': 'best[height<=1080]/best',
                 'simulate': True,
                 'dump_single_json': True,
+                'cookiefile': cls.COOKIES_FILE if os.path.exists(cls.COOKIES_FILE) and os.path.getsize(cls.COOKIES_FILE) > 0 else None,
                 'extractor_args': {
                     'youtube': {
-                        'player_client': ['tv_embedded'],
+                        'player_client': ['web' if pot_available else 'tv_embedded'],
                         'skip': [],  # Don't skip anything in fallback mode
                         'player_skip': []
                     }
                 }
-            })
+            }
             
             loop = asyncio.get_event_loop()
             with yt_dlp.YoutubeDL(fallback_options) as ydl:
@@ -416,11 +474,54 @@ class YouTubeService:
                 'preferedformat': 'mp4',
             })
         
-        # List of clients to try in order of preference (clients that don't need PO tokens)
-        clients_to_try = ['tv', 'tv_embedded', 'web_embedded', 'android_vr']
+        # First attempt with PO Token plugin if available
+        if pot_available:
+            try:
+                # Set up yt-dlp options for download with web client
+                options = cls._get_yt_dlp_options({
+                    'format': format_spec,
+                    'outtmpl': output_path,
+                    'noplaylist': True, 
+                    'writethumbnail': False,
+                    'merge_output_format': 'mp4',  # Force MP4 as output container
+                    'postprocessors': postprocessors,
+                    'extractor_args': {
+                        'youtube': {
+                            'player_client': ['web']  # Use web client with PO Token
+                        }
+                    }
+                })
+                
+                logger.info(f"Downloading video with web client and PO Token: {video_title}")
+                
+                # Run download in executor to avoid blocking
+                loop = asyncio.get_event_loop()
+                with yt_dlp.YoutubeDL(options) as ydl:
+                    await loop.run_in_executor(None, ydl.download, [url])
+                
+                # If download was successful and file exists, register it and return
+                if os.path.exists(output_path):
+                    # Register the file in file manager
+                    file_type = 'audio' if audio_only else 'video'
+                    file_info = FileManager.register_file(
+                        unique_filename,
+                        output_template,
+                        file_type
+                    )
+                    
+                    logger.info(f"Download completed with web client and PO Token: {output_path}")
+                    return file_info
+                else:
+                    logger.error(f"File not found after download with web client and PO Token: {output_path}")
+                    # Continue to fallback methods
+                    
+            except Exception as e:
+                logger.error(f"Error downloading with web client and PO Token: {str(e)}")
+                # Continue to fallback methods
         
-        # Downloads don't always use the same client that worked for info extraction
-        # so we should try multiple clients here as well
+        # List of clients to try in order of preference if PO Token approach failed
+        clients_to_try = ['tv', 'tv_embedded', 'web_embedded', 'android_vr', 'android', 'ios', 'mweb']
+        
         last_error = None
         
         for client in clients_to_try:
@@ -473,28 +574,31 @@ class YouTubeService:
                 except Exception as ex:
                     logger.error(f"Error cleaning up file: {str(ex)}")
         
-        # If all clients failed, try with fallback approach
+        # If all clients failed, try with a final fallback approach
         try:
-            logger.info("Trying fallback download approach...")
+            logger.info("Trying final fallback download approach...")
             
-            # Different options for fallback
-            fallback_options = cls._get_yt_dlp_options({
+            # Set minimal options with no skips for maximum compatibility
+            final_fallback_options = {
                 'format': 'best' if audio_only else 'best[height<=1080]',
                 'outtmpl': output_path,
                 'postprocessors': postprocessors,
                 'noplaylist': True,
                 'merge_output_format': 'mp4',
+                'cookiefile': cls.COOKIES_FILE if os.path.exists(cls.COOKIES_FILE) and os.path.getsize(cls.COOKIES_FILE) > 0 else None,
+                'quiet': False,  # Enable verbose output for debugging
+                'verbose': True,
                 'extractor_args': {
                     'youtube': {
-                        'player_client': ['tv_embedded'],
+                        'player_client': ['web' if pot_available else 'tv_embedded'],
                         'skip': [],  # Don't skip anything in fallback mode
                         'player_skip': []
                     }
                 }
-            })
+            }
             
             loop = asyncio.get_event_loop()
-            with yt_dlp.YoutubeDL(fallback_options) as ydl:
+            with yt_dlp.YoutubeDL(final_fallback_options) as ydl:
                 await loop.run_in_executor(None, ydl.download, [url])
             
             # Search for files that might have been created with a different naming pattern

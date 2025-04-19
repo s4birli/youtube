@@ -6,6 +6,7 @@ import uuid
 import random
 import string
 import time
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 import logging
@@ -13,20 +14,37 @@ import logging
 import yt_dlp
 import ffmpeg
 
+# Set up logging first
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Import the PO Token plugin
 try:
+    logger.info("Attempting to load PO Token plugin...")
     import yt_dlp_get_pot
     from bgutil_ytdlp_pot_provider import BgutilPotProvider
     
+    # Configure PO Token plugin
+    logger.info("Setting up BgUtil PO Token provider...")
+    provider = BgutilPotProvider(
+        # Specify the server URL - should match what's running in the container
+        server_url="http://127.0.0.1:4416",
+        # Log debug info
+        debug=True
+    )
+    
     # Initialize the PO Token plugin with the BgutilPotProvider
+    yt_dlp_get_pot.register(provider)
     pot_available = True
-    yt_dlp_get_pot.register(BgutilPotProvider())
-    logger = logging.getLogger(__name__)
-    logger.info("PO Token plugin successfully loaded")
-except ImportError:
+    logger.info("PO Token plugin successfully loaded and registered")
+except ImportError as e:
     pot_available = False
-    logger = logging.getLogger(__name__)
-    logger.warning("PO Token plugin not available. Some YouTube videos may fail to download.")
+    logger.error(f"PO Token plugin not available - ImportError: {e}")
+    logger.warning("Some YouTube videos may fail to download")
+except Exception as e:
+    pot_available = False
+    logger.error(f"Error initializing PO Token plugin: {str(e)}")
+    logger.warning("Some YouTube videos may fail to download")
 
 from app.core.config import settings
 from app.utils.file_manager import FileManager

@@ -4,8 +4,8 @@ services:
   # Python FastAPI Backend service
   backend:
     build:
-      context: ./new_backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: new_backend/Dockerfile
       network: host
       args:
         BUILDKIT_INLINE_CACHE: 1
@@ -21,14 +21,14 @@ services:
       - FILE_EXPIRY_SECONDS=300
       - MAX_RESOLUTION=1080p
       - BACKEND_CORS_ORIGINS=[]
-      - DEBUG=false
+      - DEBUG=true
     volumes:
       - backend_downloads:/app/downloads
       - ./netscape_cookies.txt:/app/app/data/netscape_cookies.txt
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 1024M
     dns:
       - 8.8.8.8
       - 1.1.1.1

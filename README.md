@@ -1,213 +1,99 @@
-# YouTube Downloader
+# YouTube Video Downloader
 
-A modern YouTube video and audio downloader built with TypeScript, Express, and youtube-dl-exec.
-
-![License](https://img.shields.io/github/license/s4birli/youtube)
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/s4birli/youtube/main.yml?branch=main)
+A FastAPI-based backend service for downloading YouTube videos with anti-throttling measures.
 
 ## Features
 
-- 🎬 Download YouTube videos in various formats and qualities
-- 🎵 Extract audio from YouTube videos
-- ⚡ Fast downloads using youtube-dl-exec
-- 🔒 No user data storage or tracking
-- 🌐 Cross-platform compatibility
+- Download YouTube videos in various resolutions (up to 1080p)
+- Download audio-only in MP3 format
+- Advanced anti-throttling measures to bypass YouTube's bot detection
+- Proper cookie handling for authenticated requests
+- Temporary file storage with automatic cleanup
 
-## Tech Stack
+## Requirements
 
-### Backend
-- 🚀 Node.js and Express with TypeScript
-- 🎥 youtube-dl-exec for YouTube video processing
-- 🧪 Jest for testing
+- Python 3.8+
+- Docker (optional for containerized deployment)
+- FFmpeg
+- yt-dlp
 
-### Deployment
-- 🐳 Docker for containerization
-- 🔄 GitHub Actions for CI/CD
+## Setup & Installation
 
-## Getting Started
+### Local Development
 
-### Prerequisites
-- Node.js 18+ and npm
-- Python 3 (for youtube-dl-exec)
-- ffmpeg (for audio conversion)
-
-### Installation
-
-1. Clone the repository:
-```bash
-git clone https://github.com/s4birli/youtube.git
-cd youtube
-```
-
+1. Clone the repository
 2. Install dependencies:
 ```bash
-# Install root dependencies
-npm install
-
-# Install backend dependencies
-cd backend
-npm install
-cd ..
+pip install -r new_backend/requirements.txt
 ```
-
-3. Configure environment:
+3. Set up YouTube cookies:
 ```bash
-# Backend
-cp backend/.env.example backend/.env
+cd new_backend
+python -m app.data.get_cookies
 ```
+   - This script attempts to extract YouTube cookies from your browsers
+   - Make sure you're logged into YouTube in at least one browser
+   - If the script cannot find cookies, you may need to manually create a cookies file
 
-4. Start development servers:
+4. Run the application:
 ```bash
-# Start from the root
-npm run dev
-
-# Or start from the backend directory
-cd backend
-npm run dev
+cd new_backend
+uvicorn app.main:app --reload
 ```
 
-5. Open your browser and navigate to http://localhost:3000
+### Using Docker
 
-## Project Structure
-
-```
-youtube/
-├── .github/           # GitHub Actions workflows and templates
-├── backend/           # Express backend application
-│   ├── src/           # Source code
-│   ├── tests/         # Test files
-│   ├── data/          # Downloaded files
-│   └── ...
-└── README.md          # This file
-```
-
-## Development
-
-### Running Tests
-
+1. Build and run with Docker Compose:
 ```bash
-# Run all tests from root
-npm test
-
-# Run backend tests
-cd backend
-npm test
-```
-
-### Linting
-
-```bash
-# Lint from root
-npm run lint
-
-# Lint backend
-cd backend
-npm run lint
-```
-
-### Building for Production
-
-```bash
-# Build from root
-npm run build
-
-# Build backend
-cd backend
-npm run build
-```
-
-## Deployment with Docker
-
-The application can be easily deployed using Docker:
-
-```bash
-cd backend
 docker-compose up -d
 ```
 
-This will start the application on port 3000.
+## Handling YouTube Bot Detection
 
-## API Documentation
+YouTube has increasingly aggressive bot detection mechanisms. This application implements various methods to bypass these:
 
-The backend API provides the following endpoints:
+1. **Cookie-based authentication**:
+   - The application extracts cookies from your browser to authenticate with YouTube
+   - To update cookies manually, run: `python -m app.data.get_cookies`
+   - If you cannot extract cookies automatically, you can manually export cookies:
+     - Install a browser extension like "Get cookies.txt" 
+     - Visit YouTube and log in
+     - Export cookies to `new_backend/app/data/youtube_cookies.txt`
 
-- `POST /api/youtube/info` - Get video information
-- `POST /api/youtube/download` - Download video or audio
-- `GET /api/health` - Check API health
+2. **Browser Fingerprinting Bypass**:
+   - Random visitor data generation
+   - Rotating user agents
+   - Proper HTTP headers
 
-See the [backend README](backend/README.md) for more details.
-
-## License
-
-This project is licensed under the MIT License.
-
----
-
-Made with ❤️ by Mehmet Sabirli
-
-# YouTube Downloader API - Deployment
-
-This repository contains a Python FastAPI application for downloading YouTube videos and audio streams.
-
-## Quick Deployment
-
-To deploy the application, run:
-
-```bash
-./deploy.sh
-```
-
-This script will:
-1. Pull the latest code if in a git repository
-2. Install dependencies if Python/pip are available locally
-3. Create the downloads directory
-4. Build and start the Docker container
-5. Clean up unused Docker images
-
-## Manual Deployment
-
-If you prefer to deploy manually:
-
-1. Ensure Docker and Docker Compose are installed
-2. Build the Docker image:
-   ```bash
-   docker-compose build
-   ```
-3. Start the container:
-   ```bash
-   docker-compose up -d
-   ```
-
-## Accessing the API
-
-- API Base URL: http://84.8.157.166/api/v1
-- API Documentation: http://84.8.157.166/api/v1/docs
+3. **Multiple Fallback Methods**:
+   - If a method fails, the application tries alternative approaches
 
 ## API Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/youtube/info` | POST | Get video information and available formats |
-| `/api/v1/youtube/download` | POST | Download video in specified format |
-| `/api/v1/youtube/download/{file_id}` | GET | Download a previously processed file |
-| `/api/v1/youtube/health` | GET | Health check endpoint |
+- `GET /api/v1/youtube/info?url={youtube_url}` - Get video information
+- `GET /api/v1/youtube/download?url={youtube_url}&format_id={format_id}` - Download video
+- `GET /api/v1/youtube/download-audio?url={youtube_url}` - Download audio only
+- `GET /api/v1/youtube/health` - Health check endpoint
 
-## Environment Variables
+For more details, visit the Swagger documentation at `/api/v1/docs` when the server is running.
 
-The following environment variables can be configured in docker-compose.yml:
+## Troubleshooting
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| API_V1_STR | API base path | /api/v1 |
-| PROJECT_NAME | Project name | YouTube Downloader API |
-| DOWNLOAD_PATH | Directory for downloaded files | /app/downloads |
-| FILE_EXPIRY_SECONDS | How long files are kept (seconds) | 300 |
-| MAX_RESOLUTION | Maximum video resolution | 1080p |
-| DEBUG | Debug mode | false |
+If you encounter the "Sign in to confirm you're not a bot" error:
 
-## Maintenance
+1. Make sure you have valid cookies:
+   - Run the cookie extraction script or manually export cookies
+   - Verify you're logged into YouTube in your browser
+   - If using an incognito window, note that cookies won't persist
 
-- View container logs: `docker-compose logs -f`
-- Restart container: `docker-compose restart`
-- Stop container: `docker-compose down`
-- Update and redeploy: Run `./deploy.sh` again
+2. Try different browsers:
+   - Different browsers have different cookie storage mechanisms
+   - Chrome and Firefox generally work best with yt-dlp
+
+3. Update yt-dlp:
+   - `pip install -U yt-dlp`
+   - The library is frequently updated to handle YouTube's changes
+
+## License
+
+MIT License

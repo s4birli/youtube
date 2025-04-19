@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-from pydantic import AnyHttpUrl, field_validator
+from pydantic import AnyHttpUrl, field_validator, validator
 from pydantic_settings import BaseSettings
 
 
@@ -11,23 +11,25 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "YouTube Downloader API"
     
     # CORS Configuration
-    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
+    BACKEND_CORS_ORIGINS: List[str] = []
 
-    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
-    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
-        if isinstance(v, str) and not v.startswith("["):
-            return [i.strip() for i in v.split(",")]
+    @validator("BACKEND_CORS_ORIGINS", pre=True)
+    def assemble_cors_origins(cls, v):
+        if isinstance(v, str) and v:
+            origins = [i.strip() for i in v.split(",")]
+            # Filter out empty strings
+            return [origin for origin in origins if origin]
         elif isinstance(v, (list, str)):
             return v
-        raise ValueError(v)
+        return []
 
     # YouTube video download settings
-    DOWNLOAD_PATH: str = "/tmp/youtube_downloads"
+    DOWNLOAD_PATH: str = "/tmp/yt_downloader"
     FILE_EXPIRY_SECONDS: int = 300  # 5 minutes
     MAX_RESOLUTION: str = "1080p"  # Maximum allowed resolution
     
     # Define supported video quality options
-    SUPPORTED_QUALITIES: List[str] = ["360p", "720p", "1080p"]
+    SUPPORTED_QUALITIES: List[str] = ["360p", "480p", "720p", "1080p"]
     
     # FFmpeg configuration
     FFMPEG_PATH: Optional[str] = None  # Use system default if None

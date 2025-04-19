@@ -1,3 +1,14 @@
+#!/bin/bash
+set -e
+
+echo "🔒 Implementing advanced anti-throttling measures for YouTube..."
+
+# Remove any existing cookies file
+echo "🧹 Removing existing cookies file..."
+rm -f youtube_cookies.txt
+
+# Create a more advanced YouTube service file with various bypassing techniques
+cat > new_backend/app/services/youtube_service.py.new << 'EOF'
 import os
 import asyncio
 import tempfile
@@ -485,3 +496,18 @@ class YouTubeService:
                 logger.error(f"Error cleaning up file: {str(ex)}")
             
             raise ValueError(f"Failed to download video: {str(e)}")
+EOF
+
+# Update the YouTube service with the new implementation
+echo "📋 Updating YouTube service file..."
+cp new_backend/app/services/youtube_service.py.new new_backend/app/services/youtube_service.py
+
+# Rebuild the container
+echo "🔨 Rebuilding container with advanced anti-throttling measures..."
+chmod +x rebuild_container.sh
+./rebuild_container.sh
+
+echo "✅ Applied advanced anti-throttling measures"
+echo "🌐 Your application should now be available at: http://84.8.157.166"
+echo "🔍 API documentation is available at: http://84.8.157.166/api/v1/docs"
+echo "🧪 Try downloading videos now!" 

@@ -5,6 +5,7 @@ import re
 import uuid
 import random
 import string
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 import logging
@@ -27,6 +28,9 @@ class YouTubeService:
     - Downloading videos in specified quality
     - Processing audio/video streams
     """
+    
+    # Cookie dosya yolu
+    COOKIES_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "netscape_cookies.txt")
     
     @staticmethod
     def _get_random_visitor_data():
@@ -57,6 +61,9 @@ class YouTubeService:
         Returns:
             Dict of yt-dlp options
         """
+        # Cookie dosya yolu
+        cookies_file = YouTubeService.COOKIES_FILE
+        
         # Generate random visitor data
         visitor_data = YouTubeService._get_random_visitor_data()
         
@@ -73,6 +80,9 @@ class YouTubeService:
             'extractor_retries': 5,
             'ignore_no_formats_error': True,
             'format_sort': ['res', 'quality', 'fps', 'hdr:12', 'vcodec:vp9.2', 'vcodec'],
+            
+            # Cookie dosyasını kullan (eğer mevcutsa)
+            'cookiefile': cookies_file if os.path.exists(cookies_file) and os.path.getsize(cookies_file) > 0 else None,
             
             # Various anti-throttling techniques
             'sleep_interval': 1,  # Small delay between requests
@@ -106,6 +116,10 @@ class YouTubeService:
                 'TE': 'trailers'
             }
         }
+        
+        # None değerlerini temizle
+        if default_options.get('cookiefile') is None:
+            default_options.pop('cookiefile', None)
         
         # Merge with provided options
         if options:

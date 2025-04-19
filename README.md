@@ -144,3 +144,70 @@ This project is licensed under the MIT License.
 ---
 
 Made with ❤️ by Mehmet Sabirli
+
+# YouTube Downloader API - Deployment
+
+This repository contains a Python FastAPI application for downloading YouTube videos and audio streams.
+
+## Quick Deployment
+
+To deploy the application, run:
+
+```bash
+./deploy.sh
+```
+
+This script will:
+1. Pull the latest code if in a git repository
+2. Install dependencies if Python/pip are available locally
+3. Create the downloads directory
+4. Build and start the Docker container
+5. Clean up unused Docker images
+
+## Manual Deployment
+
+If you prefer to deploy manually:
+
+1. Ensure Docker and Docker Compose are installed
+2. Build the Docker image:
+   ```bash
+   docker-compose build
+   ```
+3. Start the container:
+   ```bash
+   docker-compose up -d
+   ```
+
+## Accessing the API
+
+- API Base URL: http://84.8.157.166/api/v1
+- API Documentation: http://84.8.157.166/api/v1/docs
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/youtube/info` | POST | Get video information and available formats |
+| `/api/v1/youtube/download` | POST | Download video in specified format |
+| `/api/v1/youtube/download/{file_id}` | GET | Download a previously processed file |
+| `/api/v1/youtube/health` | GET | Health check endpoint |
+
+## Environment Variables
+
+The following environment variables can be configured in docker-compose.yml:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| API_V1_STR | API base path | /api/v1 |
+| PROJECT_NAME | Project name | YouTube Downloader API |
+| DOWNLOAD_PATH | Directory for downloaded files | /app/downloads |
+| FILE_EXPIRY_SECONDS | How long files are kept (seconds) | 300 |
+| MAX_RESOLUTION | Maximum video resolution | 1080p |
+| DEBUG | Debug mode | false |
+
+## Maintenance
+
+- View container logs: `docker-compose logs -f`
+- Restart container: `docker-compose restart`
+- Stop container: `docker-compose down`
+- Update and redeploy: Run `./deploy.sh` again

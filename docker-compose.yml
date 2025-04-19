@@ -1,30 +1,29 @@
 version: '3.8'
 
 services:
-  # Backend service
+  # Python FastAPI Backend service
   backend:
     build:
-      context: ./backend
+      context: ./new_backend
       dockerfile: Dockerfile
       network: host
       args:
         BUILDKIT_INLINE_CACHE: 1
         DOCKER_BUILDKIT: 1
-    container_name: youtube-backend
+    container_name: youtube-fastapi-backend
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "80:8000"
     environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - HOST=0.0.0.0
-      - DOWNLOAD_TEMP_DIR=/app/data
-      - CORS_ORIGIN=http://84.8.157.166,https://84.8.157.166
-      - YT_DLP_PATH=/usr/local/bin/yt-dlp
+      - API_V1_STR=/api/v1
+      - PROJECT_NAME=YouTube Downloader API
+      - DOWNLOAD_PATH=/app/downloads
+      - FILE_EXPIRY_SECONDS=300
+      - MAX_RESOLUTION=1080p
+      - BACKEND_CORS_ORIGINS=[]
+      - DEBUG=false
     volumes:
-      - backend_data:/app/data
-      - backend_public:/app/public
-      - ./backend/youtube_cookies.txt:/app/youtube_cookies.txt
+      - backend_downloads:/app/downloads
     deploy:
       resources:
         limits:
@@ -33,38 +32,11 @@ services:
       - 8.8.8.8
       - 1.1.1.1
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/youtube/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
 
-  # Frontend service
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      network: host
-      args:
-        BUILDKIT_INLINE_CACHE: 1
-        DOCKER_BUILDKIT: 1
-    container_name: youtube-frontend
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-    environment:
-      - VITE_API_URL=http://84.8.157.166/api
-      - VITE_API_BASE_URL=http://84.8.157.166
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-
 volumes:
-  backend_data:
-  backend_public: 
+  backend_downloads: 
